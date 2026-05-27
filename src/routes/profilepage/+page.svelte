@@ -191,7 +191,7 @@
 		padding-bottom: 0;
 	}
 
-	.info-group span {
+	.info-group label {
 		font-size: 0.72rem;
 		font-weight: 700;
 		text-transform: uppercase;
