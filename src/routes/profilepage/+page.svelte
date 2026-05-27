@@ -42,27 +42,27 @@
 		<div class="profile-content">
 			<div class="profile-info">
 				<div class="info-group">
-					<label>Username</label>
+					<span>Username</span>
 					<p>{user.username}</p>
 				</div>
 
 				<div class="info-group">
-					<label>Coins</label>
+					<span>Coins</span>
 					<p class="coins-value">${user.coins}</p>
 				</div>
 
 				<div class="info-group">
-					<label>Email</label>
+					<span>Email</span>
 					<p>{user.email || 'Not provided'}</p>
 				</div>
 
 				<div class="info-group">
-					<label>Account Created</label>
+					<span>Account Created</span>
 					<p>{formatDate(user.createdAt)}</p>
 				</div>
 
 				<div class="info-group">
-					<label>Last Active</label>
+					<span>Last Active</span>
 					<p>{formatDate(user.lastActive)}</p>
 				</div>
 			</div>

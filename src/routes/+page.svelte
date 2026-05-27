@@ -634,12 +634,6 @@
 		font-size: 2rem;
 	}
 
-	.auth-visual p {
-		margin: 0.75rem 0 0;
-		line-height: 1.45;
-		max-width: 24ch;
-	}
-
 	.auth-content {
 		position: relative;
 		padding: 1.35rem 1.6rem 1.6rem;

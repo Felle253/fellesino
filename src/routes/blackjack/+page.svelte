@@ -3,7 +3,7 @@
   import { base } from '$app/paths';
 
   export let data;
-  export let form;
+  export const form = undefined;
 
   let userCoins: number = data.user?.coins ?? 0;
   let currentBet: number = 0;
