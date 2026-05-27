@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { goto, invalidateAll } from '$app/navigation';
+	import { base } from '$app/paths';
 
 	type AuthFormState = {
 		activeTab?: 'login' | 'register';
@@ -70,7 +71,7 @@
 	function handleGameCardClick(event: MouseEvent) {
 		event.preventDefault();
 		if (data?.user) {
-			goto('/blackjack');
+			goto(base + '/blackjack');
 		} else {
 			openAuthModal('login');
 		}
@@ -89,12 +90,12 @@
 <div class="page-wrap">
 
 <nav class="topbar">
-	<a href="/" class="logo">Fellesino</a>
+	<a href="{base}/" class="logo">Fellesino</a>
 
 	<div class="topbar-right">
 		{#if data?.user}
 			<span class="coins-indicator">${data.user.coins}</span>
-			<a href="/profilepage" class="btn-login">Profile</a>
+			<a href="{base}/profilepage" class="btn-login">Profile</a>
 			<form method="POST" action="?/logout" style="display: contents;">
 				<button type="submit" class="btn-register">Logout</button>
 			</form>
@@ -146,7 +147,7 @@
 			</div>
 		</button>
 
-		<a href="/poker" class="game-card">
+		<a href="{base}/poker" class="game-card">
 			<div class="card-thumb poker-thumb">
 				<svg class="thumb-art" viewBox="0 0 120 90" fill="none">
 					<rect
@@ -193,7 +194,7 @@
 			</div>
 		</a>
 
-		<a href="/diamond-mine" class="game-card">
+		<a href="{base}/diamond-mine" class="game-card">
 			<div class="card-thumb mine-thumb">
 				<svg class="thumb-art" viewBox="0 0 120 90" fill="none">
 					<!-- row 1 -->

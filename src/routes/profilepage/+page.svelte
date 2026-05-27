@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { base } from '$app/paths';
 
 	let { data } = $props();
 	const user = $derived(data.user);
@@ -25,9 +26,9 @@
 <div class="page-wrap">
 
 <nav class="topbar">
-	<a href="/" class="logo">Fellesino</a>
+	<a href="{base}/" class="logo">Fellesino</a>
 	<div class="topbar-right">
-		<a href="/" class="btn-login">Home</a>
+		<a href="{base}/" class="btn-login">Home</a>
 		<button class="btn-register" type="button" onclick={handleLogout}>Logout</button>
 	</div>
 </nav>

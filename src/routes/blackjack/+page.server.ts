@@ -23,6 +23,8 @@ export const actions = {
 	addBet: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const chipValue = parseInt(formData.get('chip') as string);
+		const currentBet = parseInt(formData.get('currentBet') as string) || 0; // 👈 add this
+
 		if (isNaN(chipValue) || chipValue <= 0) {
 			return { error: 'Invalid chip value' };
 		}
@@ -35,7 +37,7 @@ export const actions = {
 		});
 		if (!userData) throw redirect(303, '/login');
 
-		if (chipValue > userData.coins) {
+		if (currentBet + chipValue > userData.coins) { // 👈 check cumulative total
 			return { error: 'You do not have enough coins to place this bet' };
 		}
 
@@ -50,6 +52,16 @@ export const actions = {
 		}
 
 		const user = await requireAuth(cookies);
+
+		const userData = await prisma.user.findUnique({
+			where: { id: user.id },
+			select: { coins: true }
+		});
+		if (!userData) throw redirect(303, '/login');
+
+		if (betAmount > userData.coins) {
+			return { error: 'You do not have enough coins to place this bet' };
+		}
 
 		let deck = createDeck();
 
