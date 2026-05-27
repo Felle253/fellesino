@@ -1,18 +1,15 @@
 <script lang="ts">
   import { enhance, deserialize } from '$app/forms';
-  import { fly, fade } from 'svelte/transition';
-  import { cubicOut } from 'svelte/easing';
+  import { base } from '$app/paths';
 
   export let data;
   export let form;
 
-  // ── State ──────────────────────────────────────────────
   let userCoins: number = data.user?.coins ?? 0;
   let currentBet: number = 0;
   let loading = false;
   let error: string | null = null;
 
-  // Game state
   let gameStatus: 'betting' | 'playing' | 'finished' = 'betting';
   let roundId: string | null = null;
   let playerCards: string[] = [];
@@ -22,13 +19,6 @@
   let result: string | null = null;
   let payout: number = 0;
 
-  let isInitialDeal = false;
-
-  $: displayDealerCards = (gameStatus === 'playing' && dealerCards.length === 1)
-    ? [dealerCards[0], 'HIDDEN']
-    : dealerCards;
-
-  // Restore active round from server on load
   $: if (data.activeRound?.blackjackHand) {
     const hand = data.activeRound.blackjackHand;
     roundId = data.activeRound.id;
@@ -38,10 +28,8 @@
     dealerScore = 0;
     gameStatus = 'playing';
     currentBet = data.activeRound.betAmount;
-    isInitialDeal = false;
   }
 
-  // ── Helpers ────────────────────────────────────────────
   function parseCard(card: string) {
     const suit = card.slice(-1);
     const rank = card.slice(0, -1);
@@ -75,9 +63,13 @@
     return (result.type === 'success' || result.type === 'failure') ? (result.data ?? null) : null;
   }
 
-  // ── Actions ────────────────────────────────────────────
   async function handleChipClick(chip: number) {
-    const d = await post('addBet', { chip });
+	if (currentBet + chip > userCoins) {
+        error = 'You do not have enough coins to place this bet';
+        return;
+    }
+
+    const d = await post('addBet', { chip, currentBet });
     if (!d) return;
     if (d.error) { error = d.error; return; }
     currentBet += chip;
@@ -87,8 +79,7 @@
     if (currentBet === 0) return;
     const d = await post('deal', { bet: currentBet });
     if (!d) return;
-    if (d.error) { error = d.error; return; }
-    isInitialDeal = true;
+    if (d.error) { error = d.error; currentBet = 0; return; }
     roundId = d.roundId;
     playerCards = d.playerCards.split(',').map((c: string) => c.trim());
     dealerCards = [d.dealerCards.trim()];
@@ -96,10 +87,6 @@
     dealerScore = 0;
     userCoins -= currentBet;
     gameStatus = 'playing';
-
-    setTimeout(() => {
-      isInitialDeal = false;
-    }, 1200);
   }
 
   async function handleHit() {
@@ -129,7 +116,7 @@
     dealerScore = d.dealerScore;
     result = d.result;
     payout = d.payout;
-    userCoins += d.payout;
+    userCoins += d.payout - currentBet;
     gameStatus = 'finished';
   }
 
@@ -158,7 +145,6 @@
     roundId = null;
     error = null;
     gameStatus = 'betting';
-    isInitialDeal = false;
   }
 </script>
 
@@ -166,7 +152,7 @@
 	<div class="bg-image"></div>	
 
 	<div class="top-left">
-		<a class="close-btn close-btn-link" aria-label="Back" href="/">✕</a>
+		<a class="close-btn close-btn-link" aria-label="Back" href="{base}/">✕</a>
 		<div class="arrow-and-label">
 			<div class="rotated-label">Surrender</div>
 		</div>
@@ -175,15 +161,11 @@
 	<div class="top-right">
 		<div class="money-display">
 			<span class="money-label">Total Money</span>
-			{#key userCoins}
-				<span class="money-value">${userCoins}</span>
-			{/key}
+			<span class="money-value">${userCoins}</span>
 		</div>
 		<div class="money-display">
 			<span class="money-label">Total Bet</span>
-			{#key currentBet}
-				<span class="money-value bet">${currentBet}</span>
-			{/key}
+			<span class="money-value bet">${currentBet}</span>
 		</div>
 	</div>
 
@@ -221,17 +203,17 @@
 				</button>
 
 				{#if gameStatus === 'betting'}
-					<div class="chips-row" transition:fly={{ y: 20, duration: 400, easing: cubicOut }}>
-						<button class="chip chip-5" type="button" on:click={() => handleChipClick(5)} disabled={loading}>
+					<div class="chips-row">
+						<button class="chip chip-5" type="button" on:click={() => handleChipClick(5)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$5</span>
 						</button>
-						<button class="chip chip-25" type="button" on:click={() => handleChipClick(25)} disabled={loading}>
+						<button class="chip chip-25" type="button" on:click={() => handleChipClick(25)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$25</span>
 						</button>
-						<button class="chip chip-100" type="button" on:click={() => handleChipClick(100)} disabled={loading}>
+						<button class="chip chip-100" type="button" on:click={() => handleChipClick(100)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$100</span>
 						</button>
-						<button class="chip chip-500" type="button" on:click={() => handleChipClick(500)} disabled={loading}>
+						<button class="chip chip-500" type="button" on:click={() => handleChipClick(500)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$500</span>
 						</button>
 					</div>
@@ -242,61 +224,40 @@
 
 	<div class="card-area dealer-area">
 		<div class="cards-row">
-			{#each displayDealerCards as card, i (i)}
-				{@const isHidden = card === 'HIDDEN'}
-				{@const { rank, suit } = isHidden ? { rank: '', suit: '' } : parseCard(card)}
-				<div
-					class="card-container card-dealer"
-					class:is-flipped={isHidden}
-					style="--card-index: {i}; --is-initial: {isInitialDeal ? 1 : 0}; --base-delay: 0.15s;"
-				>
-					<div class="card-inner">
-						<div class="card-front" class:red={!isHidden && isRedCard(card)}>
-							<span class="card-corner tl">{rank}<br />{suit}</span>
-							<span class="card-suit-center">{suit}</span>
-							<span class="card-corner br">{rank}<br />{suit}</span>
-						</div>
-						<div class="card-back">
-							<div class="card-back-inner"></div>
-						</div>
-					</div>
+			{#each dealerCards as card, i (i)}
+				{@const { rank, suit } = parseCard(card)}
+				<div class="card" class:red={isRedCard(card)}>
+					<span class="card-corner tl">{rank}<br />{suit}</span>
+					<span class="card-suit-center">{suit}</span>
+					<span class="card-corner br">{rank}<br />{suit}</span>
 				</div>
 			{/each}
+			{#if gameStatus === 'playing' && dealerCards.length === 1}
+				<div class="card card-hidden">
+					<div class="card-back-inner"></div>
+				</div>
+			{/if}
 		</div>
 		{#if dealerScore > 0 || (gameStatus === 'finished' && result)}
-			{#key dealerScore}
-				<div class="score-badge dealer-badge">
-					<span class="score-value">{dealerScore}</span>
-				</div>
-			{/key}
+			<div class="score-badge dealer-badge">
+				<span class="score-value">{dealerScore}</span>
+			</div>
 		{/if}
 	</div>
 
 	<div class="card-area player-area">
 		{#if playerScore > 0}
-			{#key playerScore}
-				<div class="score-badge player-badge">
-					<span class="score-value player-val">{playerScore}</span>
-				</div>
-			{/key}
+			<div class="score-badge player-badge">
+				<span class="score-value player-val">{playerScore}</span>
+			</div>
 		{/if}
 		<div class="cards-row">
 			{#each playerCards as card, i (i)}
 				{@const { rank, suit } = parseCard(card)}
-				<div
-					class="card-container card-player"
-					style="--card-index: {i}; --is-initial: {isInitialDeal ? 1 : 0}; --base-delay: 0s;"
-				>
-					<div class="card-inner">
-						<div class="card-front" class:red={isRedCard(card)}>
-							<span class="card-corner tl">{rank}<br />{suit}</span>
-							<span class="card-suit-center">{suit}</span>
-							<span class="card-corner br">{rank}<br />{suit}</span>
-						</div>
-						<div class="card-back">
-							<div class="card-back-inner"></div>
-						</div>
-					</div>
+				<div class="card" class:red={isRedCard(card)}>
+					<span class="card-corner tl">{rank}<br />{suit}</span>
+					<span class="card-suit-center">{suit}</span>
+					<span class="card-corner br">{rank}<br />{suit}</span>
 				</div>
 			{/each}
 		</div>
@@ -310,7 +271,6 @@
 				type="button"
 				on:click={handleHit}
 				disabled={loading}
-				transition:fly={{ y: 40, duration: 500, easing: cubicOut }}
 			>
 				<span class="btn-label">HIT</span>
 			</button>
@@ -319,7 +279,6 @@
 				type="button"
 				on:click={handleDouble}
 				disabled={loading || playerCards.length !== 2}
-				transition:fly={{ y: 40, duration: 500, delay: 100, easing: cubicOut }}
 			>
 				<span class="btn-label">DOUBLE</span>
 			</button>
@@ -328,7 +287,6 @@
 				type="button"
 				on:click={handleStand}
 				disabled={loading}
-				transition:fly={{ y: 40, duration: 500, delay: 200, easing: cubicOut }}
 			>
 				<span class="btn-label">STAND</span>
 			</button>
@@ -351,7 +309,6 @@
 		margin: 0;
 		padding: 0;
 		overflow: hidden;
-		background-color: #1a4d2e;
 	}
 
 	.game-container {
@@ -370,6 +327,7 @@
 		background-size: cover;
 		background-position: center;
 		background-repeat: no-repeat;
+		background-attachment: fixed;
 		background-color: #1a4d2e;
 		z-index: 0;
 	}
@@ -400,9 +358,9 @@
 		align-items: center;
 		justify-content: center;
 		transition:
-			transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
-			background-color 0.2s ease,
-			box-shadow 0.2s ease;
+			transform 0.1s,
+			box-shadow 0.1s,
+			margin-top 0.1s;
 	}
 
 	.close-btn-link {
@@ -410,9 +368,8 @@
 	}
 
 	.close-btn:hover {
-		transform: scale(1.1) rotate(90deg);
-		background-color: #ff3333;
-		box-shadow: 0 0 12px rgba(255, 77, 77, 0.6);
+		transform: translateY(2px);
+		margin-top: 2px;
 	}
 
 	.rotated-label {
@@ -462,8 +419,6 @@
 		font-weight: 900;
 		color: #ffffff;
 		-webkit-text-stroke: 1px #4e2c1c;
-		display: inline-block;
-		animation: value-bump 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
 	.money-value.bet {
@@ -519,9 +474,8 @@
 		justify-content: center;
 		padding: 0;
 		transition:
-			transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1),
-			filter 0.2s ease,
-			box-shadow 0.2s ease;
+			transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+			filter 0.1s;
 		font-family: 'Rajdhani', sans-serif;
 		font-weight: 900;
 		border: none;
@@ -594,12 +548,10 @@
 		padding: 12px 16px;
 		text-align: center;
 		min-width: 200px;
-		animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
 	.result-message.won {
 		background: linear-gradient(135deg, #1ade01 0%, #00a800 100%);
-		animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), glow-green 1.5s ease-in-out infinite;
 	}
 
 	.result-message.lost {
@@ -660,86 +612,30 @@
 		align-items: flex-end;
 	}
 
-	/* ── 3D CARD LAYOUT & ANIMATIONS ── */
-	.card-container {
+	.card {
 		position: relative;
 		width: 70px;
 		height: 98px;
-		margin: 0 -4px; /* slight card overlap */
-		perspective: 1000px;
-		z-index: 1;
-		
-		/* Deal animations */
-		animation: var(--deal-animation) 0.6s cubic-bezier(0.19, 1, 0.22, 1) both;
-		animation-delay: calc((var(--card-index) * 0.3s + var(--base-delay, 0s)) * var(--is-initial));
-	}
-
-	.card-dealer {
-		--deal-animation: deal-to-dealer;
-	}
-	
-	.card-player {
-		--deal-animation: deal-to-player;
-	}
-
-	.card-inner {
-		position: absolute;
-		width: 100%;
-		height: 100%;
-		transform-style: preserve-3d;
-		transition: 
-			transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.2),
-			box-shadow 0.3s ease;
-	}
-
-	.card-container.is-flipped .card-inner {
-		transform: rotateY(180deg);
-	}
-
-	/* Flip dealing animation for face-up cards to spin in from face-down state */
-	.card-container:not(.is-flipped) .card-inner {
-		animation: flip-card-deal 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.1) both;
-		animation-delay: calc((var(--card-index) * 0.3s + var(--base-delay, 0s)) * var(--is-initial));
-	}
-
-	/* Raised hover lift for face-up cards only */
-	.card-container:not(.is-flipped):hover {
-		z-index: 15;
-	}
-
-	.card-container:not(.is-flipped):hover .card-inner {
-		transform: translateY(-12px) scale(1.06) rotate(1deg);
-		box-shadow: 0 16px 32px rgba(0, 0, 0, 0.35);
-	}
-
-	.card-front,
-	.card-back {
-		position: absolute;
-		width: 100%;
-		height: 100%;
 		border-radius: 9px;
+		background: #ffffff;
 		border: 3px solid #4e2c1c;
+		color: #1c1c1c;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		backface-visibility: hidden;
-		-webkit-backface-visibility: hidden;
-		box-sizing: border-box;
-		box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+		margin: 0 -4px; /* slight card overlap */
+		transition:
+			transform 0.1s ease,
+			margin-top 0.1s ease;
 	}
 
-	.card-front {
-		background: #ffffff;
-		color: #1c1c1c;
+	.card:hover {
+		transform: translate(-5px, -15px) scale(1.05);
+		z-index: 2;
 	}
 
-	.card-front.red {
+	.card.red {
 		color: #e53935;
-	}
-
-	.card-back {
-		background: #00e5ff;
-		transform: rotateY(180deg);
 	}
 
 	/* Corner pip */
@@ -768,6 +664,11 @@
 		line-height: 1;
 	}
 
+	/* Face-down card */
+	.card-hidden {
+		background: #00e5ff;
+	}
+
 	.card-back-inner {
 		width: 100%;
 		height: 100%;
@@ -791,7 +692,6 @@
 		padding: 5px 16px 5px 12px;
 		background: #0b1a12;
 		border: 3px solid #4e2c1c;
-		animation: score-bump 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
 	.dealer-badge {
@@ -824,105 +724,6 @@
 		100% {
 			transform: scale(1);
 			opacity: 1;
-		}
-	}
-
-	@keyframes shake {
-		0%, 100% {
-			transform: translateX(0);
-		}
-		10%, 30%, 50%, 70%, 90% {
-			transform: translateX(-4px);
-		}
-		20%, 40%, 60%, 80% {
-			transform: translateX(4px);
-		}
-	}
-
-	@keyframes glow-red {
-		0%, 100% {
-			box-shadow: 0 0 8px rgba(255, 77, 77, 0.4);
-		}
-		50% {
-			box-shadow: 0 0 20px rgba(255, 77, 77, 0.8), inset 0 0 10px rgba(255, 77, 77, 0.2);
-		}
-	}
-
-	@keyframes glow-green {
-		0%, 100% {
-			box-shadow: 0 0 8px rgba(26, 222, 1, 0.4);
-		}
-		50% {
-			box-shadow: 0 0 20px rgba(26, 222, 1, 0.8), inset 0 0 10px rgba(26, 222, 1, 0.2);
-		}
-	}
-
-	@keyframes score-bump {
-		0% {
-			transform: scale(0.8);
-		}
-		50% {
-			transform: scale(1.15);
-		}
-		100% {
-			transform: scale(1);
-		}
-	}
-
-	@keyframes value-bump {
-		0% {
-			transform: scale(0.85);
-		}
-		50% {
-			transform: scale(1.1);
-		}
-		100% {
-			transform: scale(1);
-		}
-	}
-
-	@keyframes deal-to-player {
-		0% {
-			transform: translate(18vw, -8vh) rotate(45deg) scale(0.6);
-			opacity: 0;
-			filter: blur(1px);
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-		}
-		50% {
-			box-shadow: 0 20px 30px rgba(0, 0, 0, 0.4);
-		}
-		100% {
-			transform: translate(0, 0) rotate(0deg) scale(1);
-			opacity: 1;
-			filter: none;
-			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-		}
-	}
-
-	@keyframes deal-to-dealer {
-		0% {
-			transform: translate(18vw, 25vh) rotate(45deg) scale(0.6);
-			opacity: 0;
-			filter: blur(1px);
-			box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-		}
-		50% {
-			box-shadow: 0 20px 30px rgba(0, 0, 0, 0.4);
-		}
-		100% {
-			transform: translate(0, 0) rotate(0deg) scale(1);
-			opacity: 1;
-			filter: none;
-			box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-		}
-	}
-
-	@keyframes flip-card-deal {
-		0% {
-			transform: rotateY(180deg);
-		}
-		100% {
-			transform: rotateY(0deg);
 		}
 	}
 
@@ -983,12 +784,6 @@
 		height: 85px;
 		border-radius: 50%;
 		transform: rotate(-4deg);
-		transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease;
-	}
-
-	.btn-circle:hover:not(:disabled) {
-		transform: scale(1.06) rotate(-6deg);
-		box-shadow: 0 6px 16px rgba(0, 229, 255, 0.3);
 	}
 
 	.btn-rect {
@@ -997,12 +792,6 @@
 		border-radius: 20px;
 		background: #c5a059;
 		transform: rotate(2deg);
-		transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.2s ease, filter 0.2s ease;
-	}
-
-	.btn-rect:hover:not(:disabled) {
-		transform: scale(1.06) rotate(0deg);
-		box-shadow: 0 6px 16px rgba(197, 160, 89, 0.3);
 	}
 
 	.btn-deal {
