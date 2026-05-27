@@ -326,6 +326,8 @@
 		background-size: cover;
 		background-position: center;
 		background-repeat: no-repeat;
+		background-attachment: fixed;
+		background-color: #1a4d2e;
 		z-index: 0;
 	}
 
@@ -553,6 +555,7 @@
 
 	.result-message.lost {
 		background: linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%);
+		animation: shake 0.6s ease-in-out, glow-red 1.5s ease-in-out infinite;
 	}
 
 	.result-text {
@@ -723,6 +726,27 @@
 		}
 	}
 
+	@keyframes shake {
+		0%, 100% {
+			transform: translateX(0);
+		}
+		10%, 30%, 50%, 70%, 90% {
+			transform: translateX(-4px);
+		}
+		20%, 40%, 60%, 80% {
+			transform: translateX(4px);
+		}
+	}
+
+	@keyframes glow-red {
+		0%, 100% {
+			box-shadow: 0 0 8px rgba(255, 77, 77, 0.4);
+		}
+		50% {
+			box-shadow: 0 0 20px rgba(255, 77, 77, 0.8), inset 0 0 10px rgba(255, 77, 77, 0.2);
+		}
+	}
+
 	/* ── BOTTOM BUTTONS ── */
 	.action-buttons {
 		position: absolute;
@@ -791,10 +815,17 @@
 	}
 
 	.btn-deal {
-		width: 130px;
-		height: 50px;
-		border-radius: 16px;
-		background: #00e5ff;
+		width: 150px;
+		height: 60px;
+		border-radius: 20px;
+		background: linear-gradient(135deg, #00e5ff 0%, #00bcd4 100%);
+		box-shadow: 0 4px 12px rgba(0, 229, 255, 0.4);
+		transition: transform 0.1s, box-shadow 0.1s, margin-top 0.1s;
+	}
+
+	.btn-deal:hover:not(:disabled) {
+		transform: translateY(-4px) scale(1.08);
+		box-shadow: 0 8px 20px rgba(0, 229, 255, 0.6);
 	}
 
 	.btn-label {
