@@ -179,5 +179,44 @@ export const actions: Actions = {
 		
 		event.cookies.delete('sessionToken', { path: '/' });
 		throw redirect(303, '/');
+	},
+
+	claimDaily: async (event) => {
+		const sessionToken = event.cookies.get('sessionToken');
+		
+		if (!sessionToken) {
+			return fail(401, { claimError: 'You must be signed in to claim daily coins.' });
+		}
+
+		const session = await validateSession(sessionToken);
+		
+		if (!session || !session.user) {
+			event.cookies.delete('sessionToken', { path: '/' });
+			return fail(401, { claimError: 'Invalid session.' });
+		}
+
+		const user = session.user;
+		const now = new Date();
+		const lastClaimed = user.lastClaimed;
+
+		// Check if 24 hours have passed (86,400,000 ms)
+		if (lastClaimed && (now.getTime() - new Date(lastClaimed).getTime() < 24 * 60 * 60 * 1000)) {
+			const msRemaining = 24 * 60 * 60 * 1000 - (now.getTime() - new Date(lastClaimed).getTime());
+			const hours = Math.floor(msRemaining / (1000 * 60 * 60));
+			const minutes = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+			return fail(400, {
+				claimError: `Next claim available in ${hours}h ${minutes}m.`
+			});
+		}
+
+		await prisma.user.update({
+			where: { id: user.id },
+			data: {
+				coins: { increment: 250 },
+				lastClaimed: now
+			}
+		});
+
+		return { claimSuccess: true };
 	}
 };

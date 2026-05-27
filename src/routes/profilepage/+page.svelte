@@ -22,6 +22,8 @@
 	}
 </script>
 
+<div class="page-wrap">
+
 <nav class="topbar">
 	<a href="/" class="logo">Fellesino</a>
 	<div class="topbar-right">
@@ -44,6 +46,11 @@
 				</div>
 
 				<div class="info-group">
+					<label>Coins</label>
+					<p class="coins-value">${user.coins}</p>
+				</div>
+
+				<div class="info-group">
 					<label>Email</label>
 					<p>{user.email || 'Not provided'}</p>
 				</div>
@@ -62,14 +69,16 @@
 	</div>
 </main>
 
+</div>
+
 <style>
-	:global(body) {
-		margin: 0;
-		padding: 0;
-		font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-		background: #fff;
-		color: #666;
+	.page-wrap {
 		min-height: 100vh;
+		background-image: url('/images/MainBG.png');
+		background-size: cover;
+		background-position: center;
+		background-repeat: no-repeat;
+		background-color: #1a1a1a;
 	}
 
 	.topbar {
@@ -77,8 +86,9 @@
 		align-items: center;
 		height: 60px;
 		padding: 0 1.5rem;
-		background: #fff;
-		border-bottom: 1px solid #e5e5e5;
+		background: rgba(0, 0, 0, 0.15);
+		backdrop-filter: blur(10px);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 		gap: 2rem;
 		position: sticky;
 		top: 0;
@@ -88,7 +98,7 @@
 	.logo {
 		font-family: 'Casino', cursive;
 		font-size: 1.35rem;
-		color: #000;
+		color: #fff;
 		text-decoration: none;
 		letter-spacing: 0.5px;
 		flex-shrink: 0;
@@ -104,12 +114,17 @@
 		text-decoration: none;
 		font-size: 0.82rem;
 		font-weight: 600;
-		color: #555;
+		color: #fff;
 		padding: 0.42rem 1rem;
 		border-radius: 6px;
-		border: 1px solid #ccc;
-		background: #fff;
+		border: 1px solid rgba(255, 255, 255, 0.3);
+		background: rgba(255, 255, 255, 0.1);
 		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.btn-login:hover {
+		background: rgba(255, 255, 255, 0.18);
 	}
 
 	.btn-register {
@@ -117,50 +132,57 @@
 		font-size: 0.82rem;
 		font-weight: 700;
 		color: #fff;
-		background: #000;
+		background: rgba(0, 0, 0, 0.3);
 		padding: 0.44rem 1.1rem;
 		border-radius: 6px;
-		border: 1px solid #000;
+		border: 1px solid rgba(255, 255, 255, 0.2);
 		cursor: pointer;
+		transition: background 0.15s;
+	}
+
+	.btn-register:hover {
+		background: rgba(0, 0, 0, 0.5);
 	}
 
 	.profile-container {
-		max-width: 600px;
-		margin: 2rem auto;
+		max-width: 560px;
+		margin: 4rem auto;
 		padding: 0 1.5rem;
 	}
 
 	.profile-card {
-		background: #fff;
-		border: 1px solid #e5e5e5;
-		border-radius: 10px;
+		background: rgba(10, 30, 15, 0.6);
+		backdrop-filter: blur(16px);
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		border-radius: 12px;
 		overflow: hidden;
 	}
 
 	.profile-header {
-		padding: 2rem;
-		border-bottom: 1px solid #e5e5e5;
-		background: #f9f9f9;
+		padding: 1.75rem 2rem 1.5rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 	}
 
 	.profile-header h1 {
 		margin: 0;
-		font-size: 1.8rem;
-		color: #000;
+		font-size: 1.5rem;
+		color: #fff;
+		font-weight: 700;
+		letter-spacing: 0.01em;
 	}
 
 	.profile-content {
-		padding: 2rem;
+		padding: 1.75rem 2rem;
 	}
 
 	.profile-info {
 		display: grid;
-		gap: 1.5rem;
+		gap: 1.4rem;
 	}
 
 	.info-group {
-		border-bottom: 1px solid #e5e5e5;
-		padding-bottom: 1rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		padding-bottom: 1.2rem;
 	}
 
 	.info-group:last-child {
@@ -169,19 +191,24 @@
 	}
 
 	.info-group label {
-		font-size: 0.85rem;
+		font-size: 0.72rem;
 		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 0.5px;
-		color: #bbb;
+		letter-spacing: 0.08em;
+		color: rgba(255, 255, 255, 0.4);
 		display: block;
-		margin-bottom: 0.5rem;
+		margin-bottom: 0.35rem;
 	}
 
 	.info-group p {
 		margin: 0;
 		font-size: 1rem;
-		color: #333;
+		color: rgba(255, 255, 255, 0.85);
 		font-weight: 500;
+	}
+
+	.coins-value {
+		color: #c5a059 !important;
+		font-weight: 700 !important;
 	}
 </style>

@@ -14,6 +14,32 @@
 	let activeTab = $state<'login' | 'register'>('login');
 	let isSubmitting = $state(false);
 
+	let nowTicker = $state(Date.now());
+	
+	$effect(() => {
+		const interval = setInterval(() => {
+			nowTicker = Date.now();
+		}, 10000);
+		return () => clearInterval(interval);
+	});
+
+	const canClaim = $derived.by(() => {
+		if (!data?.user) return false;
+		if (!data.user.lastClaimed) return true;
+		const lastClaimedTime = new Date(data.user.lastClaimed).getTime();
+		return nowTicker - lastClaimedTime >= 24 * 60 * 60 * 1000;
+	});
+
+	const timeRemainingStr = $derived.by(() => {
+		if (!data?.user || !data.user.lastClaimed) return '';
+		const lastClaimedTime = new Date(data.user.lastClaimed).getTime();
+		const diff = 24 * 60 * 60 * 1000 - (nowTicker - lastClaimedTime);
+		if (diff <= 0) return '';
+		const hours = Math.floor(diff / (1000 * 60 * 60));
+		const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+		return `${hours}h ${minutes}m`;
+	});
+
 	function openAuthModal(tab: 'login' | 'register') {
 		activeTab = tab;
 		showAuthModal = true;
@@ -60,11 +86,14 @@
 
 <svelte:window onkeydown={handleEscape} />
 
+<div class="page-wrap">
+
 <nav class="topbar">
 	<a href="/" class="logo">Fellesino</a>
 
 	<div class="topbar-right">
 		{#if data?.user}
+			<span class="coins-indicator">${data.user.coins}</span>
 			<a href="/profilepage" class="btn-login">Profile</a>
 			<form method="POST" action="?/logout" style="display: contents;">
 				<button type="submit" class="btn-register">Logout</button>
@@ -80,6 +109,34 @@
 </nav>
 
 <main class="page">
+	{#if data?.user}
+		<div class="daily-claim-banner">
+			<div class="claim-left">
+				<span class="claim-eyebrow">Daily Bonus</span>
+				<span class="claim-amount">$250</span>
+			</div>
+			<div class="claim-right">
+				{#if canClaim}
+					<form
+						method="POST"
+						action="?/claimDaily"
+						use:enhance={() => {
+							return async ({ result }) => {
+								if (result.type === 'success') {
+									await invalidateAll();
+								}
+							};
+						}}
+					>
+						<button type="submit" class="btn-claim">Claim</button>
+					</form>
+				{:else}
+					<span class="claim-countdown">{timeRemainingStr}</span>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
 	<p class="section-label">Games</p>
 	<div class="game-grid">
 		<button type="button" class="game-card blackjack-card" onclick={handleGameCardClick}>
@@ -273,6 +330,8 @@
 	</div>
 </main>
 
+</div>
+
 {#if showAuthModal}
 	<div
 		class="auth-backdrop"
@@ -392,10 +451,8 @@
 {/if}
 
 <style>
-	:global(body) {
-		margin: 0;
-		padding: 0;
-		font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+	.page-wrap {
+		min-height: 100vh;
 		background-color: #1a1a1a;
 		background-image: url('/images/MainBG.png');
 		background-repeat: no-repeat;
@@ -403,7 +460,6 @@
 		background-size: cover;
 		background-attachment: fixed;
 		color: #666;
-		min-height: 100vh;
 	}
 
 	.topbar {
@@ -685,6 +741,80 @@
 
 		.auth-visual {
 			display: none;
+		}
+	}
+
+	/* ── COINS INDICATOR ── */
+	.coins-indicator {
+		font-size: 0.88rem;
+		font-weight: 700;
+		color: #c5a059;
+		padding: 0.38rem 0.8rem;
+		display: flex;
+		align-items: center;
+		letter-spacing: 0.03em;
+	}
+
+	/* ── DAILY CLAIM ── */
+	.daily-claim-banner {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+		padding-bottom: 1.25rem;
+		margin-bottom: 1.5rem;
+	}
+
+	.claim-left {
+		display: flex;
+		align-items: baseline;
+		gap: 0.75rem;
+	}
+
+	.claim-eyebrow {
+		font-size: 0.78rem;
+		font-weight: 600;
+		text-transform: uppercase;
+		letter-spacing: 0.08em;
+		color: #888;
+	}
+
+	.claim-amount {
+		font-size: 1.1rem;
+		font-weight: 700;
+		color: #c5a059;
+	}
+
+	.btn-claim {
+		font-size: 0.82rem;
+		font-weight: 700;
+		color: #fff;
+		background: rgba(197, 160, 89, 0.2);
+		border: 1px solid rgba(197, 160, 89, 0.5);
+		border-radius: 6px;
+		padding: 0.4rem 1rem;
+		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+		letter-spacing: 0.03em;
+	}
+
+	.btn-claim:hover {
+		background: rgba(197, 160, 89, 0.35);
+		border-color: rgba(197, 160, 89, 0.8);
+	}
+
+	.claim-countdown {
+		font-size: 0.82rem;
+		font-weight: 600;
+		color: #555;
+		letter-spacing: 0.02em;
+	}
+
+	@media (max-width: 600px) {
+		.daily-claim-banner {
+			flex-direction: column;
+			align-items: flex-start;
+			gap: 0.75rem;
 		}
 	}
 </style>

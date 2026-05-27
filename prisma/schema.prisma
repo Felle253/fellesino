@@ -20,6 +20,7 @@ model User {
   coins Int @default(1000)
 
   lastActive DateTime?
+  lastClaimed DateTime?
 
   sessions   Session[]
   gameRounds GameRound[]

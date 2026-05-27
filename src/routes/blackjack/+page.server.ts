@@ -1,6 +1,7 @@
 import { redirect } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
 import { requireAuth } from '$lib/auth';
+import type { RoundStatus } from '@prisma/client';
 
 export async function load({ cookies }) {
 	const user = await requireAuth(cookies);
@@ -151,7 +152,7 @@ export const actions = {
 
 		await prisma.gameRound.update({
 			where: { id: roundId },
-			data: { status: result, payout }
+			data: { status: (result === 'BLACKJACK' ? 'WON' : result) as RoundStatus, payout }
 		});
 
 		if (payout > 0) {
@@ -216,7 +217,7 @@ export const actions = {
 
 		await prisma.gameRound.update({
 			where: { id: roundId },
-			data: { status: result, payout }
+			data: { status: (result === 'BLACKJACK' ? 'WON' : result) as RoundStatus, payout }
 		});
 
 		if (payout > 0) {
