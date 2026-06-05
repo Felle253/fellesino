@@ -1,7 +1,7 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
 import { db } from '$lib';
-import { user, session } from '$db/schema';
+import { user, session } from '../db/schema';
 import { eq, or, sql } from 'drizzle-orm';
 import { createSession, dummyHash, hashPassword, validatePassword, validateSession } from '$lib/auth';
 

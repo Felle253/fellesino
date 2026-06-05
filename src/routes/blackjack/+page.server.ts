@@ -1,9 +1,9 @@
 import { redirect } from '@sveltejs/kit';
 import { db } from '$lib';
-import { user, gameRound, blackjackHand } from '$db/schema';
+import { user, gameRound, blackjackHand } from '../../db/schema';
 import { eq, and, sql } from 'drizzle-orm';
 import { requireAuth } from '$lib/auth';
-import type { RoundStatus } from '$db/schema';
+import type { RoundStatus } from '../../db/schema';
 
 export async function load({ cookies }) {
 	const foundUser = await requireAuth(cookies);

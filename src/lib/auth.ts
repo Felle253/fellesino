@@ -1,5 +1,5 @@
 import { db } from '$lib';
-import { session, user } from '$db/schema';
+import { session, user } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import * as crypto from 'node:crypto';
 import { redirect } from '@sveltejs/kit';

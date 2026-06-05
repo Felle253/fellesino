@@ -2,7 +2,7 @@ services:
   - type: web
     name: fellesino
     env: node
-    buildCommand: pnpm install && pnpm build
+    buildCommand: rm -rf .svelte-kit build && pnpm install && pnpm build
     startCommand: node build/index.js
     envVars:
       - key: NODE_VERSION
