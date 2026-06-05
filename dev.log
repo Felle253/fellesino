@@ -7,3 +7,5 @@
 svelte config changed, restarting vite dev-server. changed file: C:\Users\felix\Documents\skola\fellesino\svelte.config.js
 [2m17:47:56[22m [36m[1m[vite][22m[39m [90m[2m(client)[22m[39m Re-optimizing dependencies because vite config has changed
 [2m17:47:56[22m [36m[1m[vite][22m[39m server restarted.
+[2m17:55:03[22m [36m[1m[vite][22m[39m [32m.env changed, restarting server...[39m
+[2m17:55:03[22m [36m[1m[vite][22m[39m server restarted.
