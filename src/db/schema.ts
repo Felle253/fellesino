@@ -7,7 +7,8 @@ export type RoundStatus = (typeof roundStatusEnum)['enumValues'][number];
 export const user = pgTable('User', {
 	id: uuid('id').defaultRandom().primaryKey(),
 	username: text('username').notNull().unique(),
-	email: text('email').unique(),
+	email: text('email'),
+	emailHash: text('emailHash').unique(),
 	createdAt: timestamp('createdAt').defaultNow().notNull(),
 	passwordHash: text('passwordHash'),
 	passwordSalt: text('passwordSalt'),

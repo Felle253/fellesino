@@ -3,6 +3,7 @@ import { session, user } from '../db/schema';
 import { eq } from 'drizzle-orm';
 import * as crypto from 'node:crypto';
 import { redirect } from '@sveltejs/kit';
+import { decryptEmail } from '$lib/encryption';
 
 const ITERATIONS = 310000;
 const KEYLEN = 32;
@@ -75,6 +76,10 @@ export async function requireAuth(cookies: any) {
 		throw redirect(307, '/login');
 	}
 
+	if (s.user.email) {
+		s.user.email = decryptEmail(s.user.email);
+	}
+
 	return s.user;
 }
 
@@ -97,6 +102,10 @@ export async function validateSession(token: string) {
 		.update(session)
 		.set({ lastUsed: new Date() })
 		.where(eq(session.id, s.id));
+
+	if (s.user?.email) {
+		s.user.email = decryptEmail(s.user.email);
+	}
 
 	return s;
 }

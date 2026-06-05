@@ -4,6 +4,7 @@ import { db } from '$lib';
 import { user, session } from '../db/schema';
 import { eq, or, sql } from 'drizzle-orm';
 import { createSession, dummyHash, hashPassword, validatePassword, validateSession } from '$lib/auth';
+import { encryptEmail, decryptEmail, hashEmail } from '$lib/encryption';
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
 
@@ -57,13 +58,18 @@ export const actions: Actions = {
 			});
 		}
 
-		const [existingUser] = await db
+		const existingUser = await db
 			.select()
 			.from(user)
-			.where(or(eq(user.username, username), ...(email ? [eq(user.email, email)] : [])))
+			.where(
+				or(
+					eq(user.username, username),
+					...(email ? [eq(user.emailHash, hashEmail(email))] : [])
+				)
+			)
 			.limit(1);
 
-		if (existingUser) {
+		if (existingUser.length > 0) {
 			return fail(400, {
 				registerError: 'That username or email is already in use.',
 				activeTab: 'register'
@@ -75,7 +81,8 @@ export const actions: Actions = {
 			.insert(user)
 			.values({
 				username,
-				email,
+				email: email ? encryptEmail(email) : null,
+				emailHash: email ? hashEmail(email) : null,
 				passwordHash: passwordData.hash,
 				passwordSalt: passwordData.salt,
 				passwordAlgo: passwordData.algo,
@@ -83,13 +90,13 @@ export const actions: Actions = {
 			})
 			.returning();
 
-		const session = await createSession(
+		const sessionRecord = await createSession(
 			newUser.id,
 			event.request.headers.get('user-agent') ?? undefined,
 			event.getClientAddress()
 		);
 
-		event.cookies.set('sessionToken', session.token, {
+		event.cookies.set('sessionToken', sessionRecord.token, {
 			path: '/',
 			httpOnly: true,
 			sameSite: 'lax',
@@ -102,7 +109,7 @@ export const actions: Actions = {
 			user: {
 				id: newUser.id,
 				username: newUser.username,
-				email: newUser.email
+				email: email
 			}
 		};
 	},
@@ -123,7 +130,12 @@ export const actions: Actions = {
 		const [foundUser] = await db
 			.select()
 			.from(user)
-			.where(or(eq(user.username, identifierInput), eq(user.email, identifier)))
+			.where(
+				or(
+					eq(user.username, identifierInput),
+					eq(user.emailHash, hashEmail(identifier))
+				)
+			)
 			.limit(1);
 
 		if (!foundUser?.passwordHash || !foundUser.passwordSalt) {
@@ -161,12 +173,14 @@ export const actions: Actions = {
 			.set({ lastActive: new Date() })
 			.where(eq(user.id, foundUser.id));
 
+		const decryptedEmail = foundUser.email ? decryptEmail(foundUser.email) : null;
+
 		return {
 			success: true,
 			user: {
 				id: foundUser.id,
 				username: foundUser.username,
-				email: foundUser.email
+				email: decryptedEmail
 			}
 		};
 	},
