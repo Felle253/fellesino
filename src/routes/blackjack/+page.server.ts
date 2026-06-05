@@ -1,19 +1,22 @@
 import { redirect } from '@sveltejs/kit';
-import { prisma } from '$lib/server/prisma';
+import { db } from '$lib';
+import { user, gameRound, blackjackHand } from '$db/schema';
+import { eq, and, sql } from 'drizzle-orm';
 import { requireAuth } from '$lib/auth';
-import type { RoundStatus } from '@prisma/client';
+import type { RoundStatus } from '$db/schema';
 
 export async function load({ cookies }) {
-	const user = await requireAuth(cookies);
+	const foundUser = await requireAuth(cookies);
 
-	const userData = await prisma.user.findUnique({
-		where: { id: user.id },
-		select: { id: true, username: true, coins: true }
-	});
+	const [userData] = await db
+		.select({ id: user.id, username: user.username, coins: user.coins })
+		.from(user)
+		.where(eq(user.id, foundUser.id))
+		.limit(1);
 
-	const activeRound = await prisma.gameRound.findFirst({
-		where: { userId: user.id, status: 'IN_PROGRESS' },
-		include: { blackjackHand: true }
+	const activeRound = await db.query.gameRound.findFirst({
+		where: and(eq(gameRound.userId, foundUser.id), eq(gameRound.status, 'IN_PROGRESS')),
+		with: { blackjackHand: true }
 	});
 
 	return { user: userData, activeRound };
@@ -23,21 +26,22 @@ export const actions = {
 	addBet: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const chipValue = parseInt(formData.get('chip') as string);
-		const currentBet = parseInt(formData.get('currentBet') as string) || 0; // 👈 add this
+		const currentBet = parseInt(formData.get('currentBet') as string) || 0;
 
 		if (isNaN(chipValue) || chipValue <= 0) {
 			return { error: 'Invalid chip value' };
 		}
 
-		const user = await requireAuth(cookies);
+		const foundUser = await requireAuth(cookies);
 
-		const userData = await prisma.user.findUnique({
-			where: { id: user.id },
-			select: { coins: true }
-		});
+		const [userData] = await db
+			.select({ coins: user.coins })
+			.from(user)
+			.where(eq(user.id, foundUser.id))
+			.limit(1);
 		if (!userData) throw redirect(303, '/login');
 
-		if (currentBet + chipValue > userData.coins) { // 👈 check cumulative total
+		if (currentBet + chipValue > userData.coins) {
 			return { error: 'You do not have enough coins to place this bet' };
 		}
 
@@ -51,12 +55,13 @@ export const actions = {
 			return { error: 'Invalid bet amount' };
 		}
 
-		const user = await requireAuth(cookies);
+		const foundUser = await requireAuth(cookies);
 
-		const userData = await prisma.user.findUnique({
-			where: { id: user.id },
-			select: { coins: true }
-		});
+		const [userData] = await db
+			.select({ coins: user.coins })
+			.from(user)
+			.where(eq(user.id, foundUser.id))
+			.limit(1);
 		if (!userData) throw redirect(303, '/login');
 
 		if (betAmount > userData.coins) {
@@ -73,27 +78,28 @@ export const actions = {
 		const playerCards = `${p1},${p2}`;
 		const dealerCards = `${dealer1},${dealer2}`;
 
-		const round = await prisma.gameRound.create({
-			data: {
-				userId: user.id,
+		const [round] = await db
+			.insert(gameRound)
+			.values({
+				userId: foundUser.id,
 				betAmount,
-				status: 'IN_PROGRESS',
-				blackjackHand: {
-					create: {
-						playerCards,
-						dealerCards,
-						deck: d4.join(','),
-						playerScore: calculateScore(playerCards),
-						dealerScore: calculateScore(dealerCards)
-					}
-				}
-			}
+				status: 'IN_PROGRESS'
+			})
+			.returning();
+
+		await db.insert(blackjackHand).values({
+			roundId: round.id,
+			playerCards,
+			dealerCards,
+			deck: d4.join(','),
+			playerScore: calculateScore(playerCards),
+			dealerScore: calculateScore(dealerCards)
 		});
 
-		await prisma.user.update({
-			where: { id: user.id },
-			data: { coins: { decrement: betAmount } }
-		});
+		await db
+			.update(user)
+			.set({ coins: sql`${user.coins} - ${betAmount}` })
+			.where(eq(user.id, foundUser.id));
 
 		return {
 			roundId: round.id,
@@ -106,11 +112,13 @@ export const actions = {
 	hit: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const roundId = formData.get('roundId') as string;
-		const user = await requireAuth(cookies);
+		const foundUser = await requireAuth(cookies);
 
-		const hand = await prisma.blackjackHand.findFirst({
-			where: { round: { id: roundId } }
-		});
+		const [hand] = await db
+			.select()
+			.from(blackjackHand)
+			.where(eq(blackjackHand.roundId, roundId))
+			.limit(1);
 		if (!hand) throw redirect(303, '/blackjack');
 
 		const deck = hand.deck.split(',');
@@ -119,16 +127,16 @@ export const actions = {
 		const score = calculateScore(newCards);
 		const bust = score > 21;
 
-		await prisma.blackjackHand.update({
-			where: { id: hand.id },
-			data: { playerCards: newCards, deck: remainingDeck.join(',') }
-		});
+		await db
+			.update(blackjackHand)
+			.set({ playerCards: newCards, deck: remainingDeck.join(',') })
+			.where(eq(blackjackHand.id, hand.id));
 
 		if (bust) {
-			await prisma.gameRound.update({
-				where: { id: roundId },
-				data: { status: 'LOST' }
-			});
+			await db
+				.update(gameRound)
+				.set({ status: 'LOST' })
+				.where(eq(gameRound.id, roundId));
 			return {
 				playerCards: newCards,
 				playerScore: score,
@@ -144,15 +152,20 @@ export const actions = {
 	stand: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const roundId = formData.get('roundId') as string;
-		const user = await requireAuth(cookies);
+		const foundUser = await requireAuth(cookies);
 
-		const round = await prisma.gameRound.findUnique({
-			where: { id: roundId },
-			include: { blackjackHand: true }
-		});
+		const [round] = await db
+			.select()
+			.from(gameRound)
+			.where(eq(gameRound.id, roundId))
+			.limit(1);
 		if (!round) throw redirect(303, '/blackjack');
 
-		const hand = round.blackjackHand;
+		const [hand] = await db
+			.select()
+			.from(blackjackHand)
+			.where(eq(blackjackHand.roundId, roundId))
+			.limit(1);
 		if (!hand) throw redirect(303, '/blackjack');
 
 		const deck = hand.deck.split(',').filter(c => c.trim());
@@ -162,16 +175,16 @@ export const actions = {
 		const result = determineWinner(playerScore, finalScore, hand.playerCards);
 		const payout = calculatePayout(round.betAmount, result);
 
-		await prisma.gameRound.update({
-			where: { id: roundId },
-			data: { status: (result === 'BLACKJACK' ? 'WON' : result) as RoundStatus, payout }
-		});
+		await db
+			.update(gameRound)
+			.set({ status: (result === 'BLACKJACK' ? 'WON' : result) as RoundStatus, payout })
+			.where(eq(gameRound.id, roundId));
 
 		if (payout > 0) {
-			await prisma.user.update({
-				where: { id: user.id },
-				data: { coins: { increment: payout } }
-			});
+			await db
+				.update(user)
+				.set({ coins: sql`${user.coins} + ${payout}` })
+				.where(eq(user.id, foundUser.id));
 		}
 
 		return { result, dealerCards: finalCards, dealerScore: finalScore, payout };
@@ -180,29 +193,34 @@ export const actions = {
 	surrender: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const roundId = formData.get('roundId') as string;
-		const user = await requireAuth(cookies);
+		const foundUser = await requireAuth(cookies);
 
-		const round = await prisma.gameRound.findUnique({
-			where: { id: roundId },
-			include: { blackjackHand: true }
-		});
+		const [round] = await db
+			.select()
+			.from(gameRound)
+			.where(eq(gameRound.id, roundId))
+			.limit(1);
 		if (!round) throw redirect(303, '/blackjack');
 
-		const hand = round.blackjackHand;
+		const [hand] = await db
+			.select()
+			.from(blackjackHand)
+			.where(eq(blackjackHand.roundId, roundId))
+			.limit(1);
 		if (!hand) throw redirect(303, '/blackjack');
 
 		const refund = Math.floor(round.betAmount / 2);
 
-		await prisma.gameRound.update({
-			where: { id: roundId },
-			data: { status: 'LOST', payout: refund }
-		});
+		await db
+			.update(gameRound)
+			.set({ status: 'LOST', payout: refund })
+			.where(eq(gameRound.id, roundId));
 
 		if (refund > 0) {
-			await prisma.user.update({
-				where: { id: user.id },
-				data: { coins: { increment: refund } }
-			});
+			await db
+				.update(user)
+				.set({ coins: sql`${user.coins} + ${refund}` })
+				.where(eq(user.id, foundUser.id));
 		}
 
 		const deck = hand.deck.split(',').filter(c => c.trim());
@@ -219,37 +237,43 @@ export const actions = {
 	double: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const roundId = formData.get('roundId') as string;
-		const user = await requireAuth(cookies);
+		const foundUser = await requireAuth(cookies);
 
-		const round = await prisma.gameRound.findUnique({
-			where: { id: roundId },
-			include: { blackjackHand: true }
-		});
+		const [round] = await db
+			.select()
+			.from(gameRound)
+			.where(eq(gameRound.id, roundId))
+			.limit(1);
 		if (!round) throw redirect(303, '/blackjack');
 
-		const hand = round.blackjackHand;
+		const [hand] = await db
+			.select()
+			.from(blackjackHand)
+			.where(eq(blackjackHand.roundId, roundId))
+			.limit(1);
 		if (!hand) throw redirect(303, '/blackjack');
 
-		const userData = await prisma.user.findUnique({
-			where: { id: user.id },
-			select: { coins: true }
-		});
+		const [userData] = await db
+			.select({ coins: user.coins })
+			.from(user)
+			.where(eq(user.id, foundUser.id))
+			.limit(1);
 		if (!userData) throw redirect(303, '/login');
 
 		if (userData.coins < round.betAmount) {
 			return { error: 'You don have enough coins to double down' };
 		}
 
-		await prisma.user.update({
-			where: { id: user.id },
-			data: { coins: { decrement: round.betAmount } }
-		});
+		await db
+			.update(user)
+			.set({ coins: sql`${user.coins} - ${round.betAmount}` })
+			.where(eq(user.id, foundUser.id));
 
 		const newBet = round.betAmount * 2;
-		await prisma.gameRound.update({
-			where: { id: roundId },
-			data: { betAmount: newBet }
-		});
+		await db
+			.update(gameRound)
+			.set({ betAmount: newBet })
+			.where(eq(gameRound.id, roundId));
 
 		const deck = hand.deck.split(',').filter(c => c.trim());
 		const { card, remainingDeck } = dealCard(deck);
@@ -261,21 +285,21 @@ export const actions = {
 		const result = determineWinner(playerScore, finalScore, newPlayerCards);
 		const payout = calculatePayout(newBet, result);
 
-		await prisma.blackjackHand.update({
-			where: { id: hand.id },
-			data: { playerCards: newPlayerCards, dealerCards: finalCards, deck: '' }
-		});
+		await db
+			.update(blackjackHand)
+			.set({ playerCards: newPlayerCards, dealerCards: finalCards, deck: '' })
+			.where(eq(blackjackHand.id, hand.id));
 
-		await prisma.gameRound.update({
-			where: { id: roundId },
-			data: { status: (result === 'BLACKJACK' ? 'WON' : result) as RoundStatus, payout }
-		});
+		await db
+			.update(gameRound)
+			.set({ status: (result === 'BLACKJACK' ? 'WON' : result) as RoundStatus, payout })
+			.where(eq(gameRound.id, roundId));
 
 		if (payout > 0) {
-			await prisma.user.update({
-				where: { id: user.id },
-				data: { coins: { increment: payout } }
-			});
+			await db
+				.update(user)
+				.set({ coins: sql`${user.coins} + ${payout}` })
+				.where(eq(user.id, foundUser.id));
 		}
 		return {
 			playerCards: newPlayerCards,
@@ -290,7 +314,7 @@ export const actions = {
 
 function createDeck(): string[] {
 	const ranks = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
-	const suits = ['S', 'H', 'D', 'C']; // Spades, Hearts, Diamonds, Clubs
+	const suits = ['S', 'H', 'D', 'C'];
 	const deck: string[] = [];
 
 	for (const suit of suits) {

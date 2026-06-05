@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: fellesino
+    env: node
+    buildCommand: pnpm install && pnpm build
+    startCommand: node build/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: ORIGIN
+        value: https://fellesino.onrender.com
+      - key: DATABASE_URL
+        fromDatabase:
+          name: fellesino-db
+          property: connectionString
+
+databases:
+  - name: fellesino-db
+    databaseName: fellesino
+    plan: free

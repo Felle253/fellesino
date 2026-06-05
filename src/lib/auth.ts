@@ -1,4 +1,6 @@
-import { prisma } from '$lib';
+import { db } from '$lib';
+import { session, user } from '$db/schema';
+import { eq } from 'drizzle-orm';
 import * as crypto from 'node:crypto';
 import { redirect } from '@sveltejs/kit';
 
@@ -32,19 +34,14 @@ export function generateSessionToken() {
 export async function createSession(userId: string, userAgent?: string, ipAddress?: string) {
 	const token = generateSessionToken();
 	const expiresAt = new Date();
-	expiresAt.setDate(expiresAt.getDate() + 14); // 14 dagar
+	expiresAt.setDate(expiresAt.getDate() + 14);
 
-	const session = await prisma.session.create({
-		data: {
-			token,
-			userId,
-			userAgent,
-			ipAddress,
-			expiresAt
-		}
-	});
+	const [s] = await db
+		.insert(session)
+		.values({ token, userId, userAgent, ipAddress, expiresAt })
+		.returning();
 
-	return session;
+	return s;
 }
 
 export function isTokenExpired(createdAt: Date, maxAgeInDays: number = 7): boolean {
@@ -60,58 +57,46 @@ export async function requireAuth(cookies: any) {
 		throw redirect(307, '/login');
 	}
 
-	/*const user = await prisma.user.findUnique({
-		where: { sessionToken }
-	});*/
-
-	const session = await prisma.session.findUnique({
-		where: { token: sessionToken },
-		include: { user: true }
+	const s = await db.query.session.findFirst({
+		where: eq(session.token, sessionToken),
+		with: { user: true }
 	});
 
-	if (!session || !session.user) {
+	if (!s || !s.user) {
 		cookies.delete('sessionToken', { path: '/' });
 		throw redirect(307, '/login');
 	}
-
-	/*if (!user || !user.tokenCreatedAt) {
-		cookies.delete('sessionToken', { path: '/' });
-		throw redirect(307, '/login');
-	}*/
 
 	const expiredDays = 7;
-	if (isTokenExpired(session.createdAt, expiredDays)) {
-		await prisma.session.delete({
-			where: { id: session.id }
-			//data: { sessionToken: null, tokenCreatedAt: null }
-		});
+	if (isTokenExpired(s.createdAt, expiredDays)) {
+		await db.delete(session).where(eq(session.id, s.id));
 
 		cookies.delete('sessionToken', { path: '/' });
 		throw redirect(307, '/login');
 	}
 
-	return session.user;
+	return s.user;
 }
 
 export async function validateSession(token: string) {
-	const session = await prisma.session.findUnique({
-		where: { token },
-		include: { user: true }
+	const s = await db.query.session.findFirst({
+		where: eq(session.token, token),
+		with: { user: true }
 	});
 
-	if (!session) {
+	if (!s) {
 		return null;
 	}
 
-	if (session.expiresAt < new Date()) {
-		await prisma.session.delete({ where: { id: session.id } });
+	if (s.expiresAt < new Date()) {
+		await db.delete(session).where(eq(session.id, s.id));
 		return null;
 	}
 
-	await prisma.session.update({
-		where: { id: session.id },
-		data: { lastUsed: new Date() }
-	});
+	await db
+		.update(session)
+		.set({ lastUsed: new Date() })
+		.where(eq(session.id, s.id));
 
-	return session;
+	return s;
 }

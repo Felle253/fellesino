@@ -1,6 +1,8 @@
 import { fail, redirect } from '@sveltejs/kit';
 import type { Actions } from './$types';
-import { prisma } from '$lib';
+import { db } from '$lib';
+import { user, session } from '$db/schema';
+import { eq, or, sql } from 'drizzle-orm';
 import { createSession, dummyHash, hashPassword, validatePassword, validateSession } from '$lib/auth';
 
 const SESSION_MAX_AGE = 60 * 60 * 24 * 14;
@@ -11,19 +13,19 @@ function normalize(value: FormDataEntryValue | null) {
 
 export async function load(event) {
 	const sessionToken = event.cookies.get('sessionToken');
-	
+
 	if (!sessionToken) {
 		return { user: null };
 	}
 
-	const session = await validateSession(sessionToken);
-	
-	if (!session || !session.user) {
+	const s = await validateSession(sessionToken);
+
+	if (!s || !s.user) {
 		event.cookies.delete('sessionToken', { path: '/' });
 		return { user: null };
 	}
 
-	return { user: session.user };
+	return { user: s.user };
 }
 
 export const actions: Actions = {
@@ -55,11 +57,11 @@ export const actions: Actions = {
 			});
 		}
 
-		const existingUser = await prisma.user.findFirst({
-			where: {
-				OR: [{ username }, ...(email ? [{ email }] : [])]
-			}
-		});
+		const [existingUser] = await db
+			.select()
+			.from(user)
+			.where(or(eq(user.username, username), ...(email ? [eq(user.email, email)] : [])))
+			.limit(1);
 
 		if (existingUser) {
 			return fail(400, {
@@ -69,19 +71,20 @@ export const actions: Actions = {
 		}
 
 		const passwordData = hashPassword(password);
-		const user = await prisma.user.create({
-			data: {
+		const [newUser] = await db
+			.insert(user)
+			.values({
 				username,
 				email,
 				passwordHash: passwordData.hash,
 				passwordSalt: passwordData.salt,
 				passwordAlgo: passwordData.algo,
 				lastActive: new Date()
-			}
-		});
+			})
+			.returning();
 
 		const session = await createSession(
-			user.id,
+			newUser.id,
 			event.request.headers.get('user-agent') ?? undefined,
 			event.getClientAddress()
 		);
@@ -97,9 +100,9 @@ export const actions: Actions = {
 		return {
 			success: true,
 			user: {
-				id: user.id,
-				username: user.username,
-				email: user.email
+				id: newUser.id,
+				username: newUser.username,
+				email: newUser.email
 			}
 		};
 	},
@@ -117,13 +120,13 @@ export const actions: Actions = {
 			});
 		}
 
-		const user = await prisma.user.findFirst({
-			where: {
-				OR: [{ username: identifierInput }, { email: identifier }]
-			}
-		});
+		const [foundUser] = await db
+			.select()
+			.from(user)
+			.where(or(eq(user.username, identifierInput), eq(user.email, identifier)))
+			.limit(1);
 
-		if (!user?.passwordHash || !user.passwordSalt) {
+		if (!foundUser?.passwordHash || !foundUser.passwordSalt) {
 			dummyHash();
 			return fail(400, {
 				loginError: 'Invalid credentials.',
@@ -131,7 +134,7 @@ export const actions: Actions = {
 			});
 		}
 
-		const isValid = validatePassword(password, user.passwordSalt, user.passwordHash);
+		const isValid = validatePassword(password, foundUser.passwordSalt, foundUser.passwordHash);
 		if (!isValid) {
 			return fail(400, {
 				loginError: 'Invalid credentials.',
@@ -139,13 +142,13 @@ export const actions: Actions = {
 			});
 		}
 
-		const session = await createSession(
-			user.id,
+		const sessionRecord = await createSession(
+			foundUser.id,
 			event.request.headers.get('user-agent') ?? undefined,
 			event.getClientAddress()
 		);
 
-		event.cookies.set('sessionToken', session.token, {
+		event.cookies.set('sessionToken', sessionRecord.token, {
 			path: '/',
 			httpOnly: true,
 			sameSite: 'lax',
@@ -153,53 +156,50 @@ export const actions: Actions = {
 			maxAge: SESSION_MAX_AGE
 		});
 
-		await prisma.user.update({
-			where: { id: user.id },
-			data: { lastActive: new Date() }
-		});
+		await db
+			.update(user)
+			.set({ lastActive: new Date() })
+			.where(eq(user.id, foundUser.id));
 
 		return {
 			success: true,
 			user: {
-				id: user.id,
-				username: user.username,
-				email: user.email
+				id: foundUser.id,
+				username: foundUser.username,
+				email: foundUser.email
 			}
 		};
 	},
 
 	logout: async (event) => {
 		const sessionToken = event.cookies.get('sessionToken');
-		
+
 		if (sessionToken) {
-			await prisma.session.deleteMany({
-				where: { token: sessionToken }
-			});
+			await db.delete(session).where(eq(session.token, sessionToken));
 		}
-		
+
 		event.cookies.delete('sessionToken', { path: '/' });
 		throw redirect(303, '/');
 	},
 
 	claimDaily: async (event) => {
 		const sessionToken = event.cookies.get('sessionToken');
-		
+
 		if (!sessionToken) {
 			return fail(401, { claimError: 'You must be signed in to claim daily coins.' });
 		}
 
-		const session = await validateSession(sessionToken);
-		
-		if (!session || !session.user) {
+		const s = await validateSession(sessionToken);
+
+		if (!s || !s.user) {
 			event.cookies.delete('sessionToken', { path: '/' });
 			return fail(401, { claimError: 'Invalid session.' });
 		}
 
-		const user = session.user;
+		const foundUser = s.user;
 		const now = new Date();
-		const lastClaimed = user.lastClaimed;
+		const lastClaimed = foundUser.lastClaimed;
 
-		// Check if 24 hours have passed (86,400,000 ms)
 		if (lastClaimed && (now.getTime() - new Date(lastClaimed).getTime() < 24 * 60 * 60 * 1000)) {
 			const msRemaining = 24 * 60 * 60 * 1000 - (now.getTime() - new Date(lastClaimed).getTime());
 			const hours = Math.floor(msRemaining / (1000 * 60 * 60));
@@ -209,13 +209,13 @@ export const actions: Actions = {
 			});
 		}
 
-		await prisma.user.update({
-			where: { id: user.id },
-			data: {
-				coins: { increment: 250 },
+		await db
+			.update(user)
+			.set({
+				coins: sql`${user.coins} + 250`,
 				lastClaimed: now
-			}
-		});
+			})
+			.where(eq(user.id, foundUser.id));
 
 		return { claimSuccess: true };
 	}
