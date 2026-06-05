@@ -1,7 +1,8 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
-	import { goto, invalidateAll } from '$app/navigation';
+	import { goto } from '$app/navigation';
 	import { base } from '$app/paths';
+	import { fade } from 'svelte/transition';
+	import { sidebar } from '$lib/stores/sidebar.svelte';
 
 	type AuthFormState = {
 		activeTab?: 'login' | 'register';
@@ -14,32 +15,6 @@
 	let showAuthModal = $state(false);
 	let activeTab = $state<'login' | 'register'>('login');
 	let isSubmitting = $state(false);
-
-	let nowTicker = $state(Date.now());
-	
-	$effect(() => {
-		const interval = setInterval(() => {
-			nowTicker = Date.now();
-		}, 10000);
-		return () => clearInterval(interval);
-	});
-
-	const canClaim = $derived.by(() => {
-		if (!data?.user) return false;
-		if (!data.user.lastClaimed) return true;
-		const lastClaimedTime = new Date(data.user.lastClaimed).getTime();
-		return nowTicker - lastClaimedTime >= 24 * 60 * 60 * 1000;
-	});
-
-	const timeRemainingStr = $derived.by(() => {
-		if (!data?.user || !data.user.lastClaimed) return '';
-		const lastClaimedTime = new Date(data.user.lastClaimed).getTime();
-		const diff = 24 * 60 * 60 * 1000 - (nowTicker - lastClaimedTime);
-		if (diff <= 0) return '';
-		const hours = Math.floor(diff / (1000 * 60 * 60));
-		const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-		return `${hours}h ${minutes}m`;
-	});
 
 	function openAuthModal(tab: 'login' | 'register') {
 		activeTab = tab;
@@ -94,8 +69,8 @@
 
 	<div class="topbar-right">
 		{#if data?.user}
-			<span class="coins-indicator">${data.user.coins}</span>
-			<a href="{base}/profilepage" class="btn-login">Profile</a>
+			<button class="coins-indicator" type="button" onclick={() => sidebar.show()}>${data.user.coins}</button>
+			<button class="btn-login" type="button" onclick={() => sidebar.show()}>Profile</button>
 			<form method="POST" action="?/logout" style="display: contents;">
 				<button type="submit" class="btn-register">Logout</button>
 			</form>
@@ -110,34 +85,6 @@
 </nav>
 
 <main class="page">
-	{#if data?.user}
-		<div class="daily-claim-banner">
-			<div class="claim-left">
-				<span class="claim-eyebrow">Daily Bonus</span>
-				<span class="claim-amount">$250</span>
-			</div>
-			<div class="claim-right">
-				{#if canClaim}
-					<form
-						method="POST"
-						action="?/claimDaily"
-						use:enhance={() => {
-							return async ({ result }) => {
-								if (result.type === 'success') {
-									await invalidateAll();
-								}
-							};
-						}}
-					>
-						<button type="submit" class="btn-claim">Claim</button>
-					</form>
-				{:else}
-					<span class="claim-countdown">{timeRemainingStr}</span>
-				{/if}
-			</div>
-		</div>
-	{/if}
-
 	<p class="section-label">Games</p>
 	<div class="game-grid">
 		<button type="button" class="game-card blackjack-card" onclick={handleGameCardClick}>
@@ -336,13 +283,20 @@
 {#if showAuthModal}
 	<div
 		class="auth-backdrop"
+		transition:fade={{ duration: 150 }}
 		onclick={handleBackdropClick}
 		onkeydown={handleBackdropKeydown}
 		role="button"
 		tabindex="0"
 		aria-label="Close authentication dialog"
 	>
-		<div class="auth-modal" role="dialog" aria-modal="true" aria-label="Authentication dialog">
+		<div
+			class="auth-modal"
+			transition:fly={{ y: 30, duration: 250 }}
+			role="dialog"
+			aria-modal="true"
+			aria-label="Authentication dialog"
+		>
 			<div
 				class="auth-visual"
 				class:login={activeTab === 'login'}
@@ -373,7 +327,9 @@
 					</button>
 				</div>
 
+				{#key activeTab}
 				{#if activeTab === 'login'}
+					<div in:fly={{ y: 12, duration: 180 }}>
 					<h3>Welcome back</h3>
 				<form
 					method="POST"
@@ -404,10 +360,15 @@
 					{/if}
 
 					<button type="submit" class="auth-submit" disabled={isSubmitting}>
+						{#if isSubmitting}
+							<svg class="spinner" viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="40" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 10 10" to="360 10 10" dur="0.7s" repeatCount="indefinite"/></circle></svg>
+						{/if}
 						{isSubmitting ? 'Logging in...' : 'Login'}
 					</button>
 				</form>
+				</div>
 			{:else}
+				<div in:fly={{ y: 12, duration: 180 }}>
 				<h3>Create an account</h3>
 				<form
 					method="POST"
@@ -442,10 +403,15 @@
 					{/if}
 
 					<button type="submit" class="auth-submit" disabled={isSubmitting}>
+						{#if isSubmitting}
+							<svg class="spinner" viewBox="0 0 20 20" width="18" height="18"><circle cx="10" cy="10" r="8" fill="none" stroke="#fff" stroke-width="2.5" stroke-dasharray="40" stroke-linecap="round"><animateTransform attributeName="transform" type="rotate" from="0 10 10" to="360 10 10" dur="0.7s" repeatCount="indefinite"/></circle></svg>
+						{/if}
 						{isSubmitting ? 'Creating account...' : 'Create Account'}
 					</button>
 				</form>
+				</div>
 			{/if}
+			{/key}
 			</div>
 		</div>
 	</div>
@@ -454,88 +420,115 @@
 <style>
 	.page-wrap {
 		min-height: 100vh;
-		background-color: #1a1a1a;
+		background-color: #0a0a0a;
 		background-image: url('/images/MainBG.png');
 		background-repeat: no-repeat;
 		background-position: center;
 		background-size: cover;
 		background-attachment: fixed;
-		color: #666;
+		color: #888;
 	}
 
+	/* ── TOPBAR ── */
 	.topbar {
 		display: flex;
 		align-items: center;
-		height: 60px;
-		padding: 0 1.5rem;
-		background: rgba(0, 0, 0, 0.1);
-		backdrop-filter: blur(10px);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-		gap: 2rem;
+		height: 4rem;
+		padding: 0 2rem;
+		background: rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(14px);
+		border-bottom: 1px solid rgba(59, 130, 246, 0.2);
 		position: sticky;
 		top: 0;
 		z-index: 100;
 	}
 	.logo {
-		font-family: 'Casino', cursive;
-		font-size: 1.35rem;
+		position: absolute;
+		left: 50%;
+		transform: translateX(-50%);
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 1.8rem;
+		font-weight: 900;
 		color: #fff;
 		text-decoration: none;
 		letter-spacing: 0.5px;
-		flex-shrink: 0;
+		text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+		transition: text-shadow 0.2s;
+		white-space: nowrap;
+	}
+	.logo:hover {
+		text-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
 	}
 	.topbar-right {
 		display: flex;
-		gap: 0.5rem;
+		gap: 0.7rem;
 		margin-left: auto;
+		align-items: center;
 	}
 	.btn-login {
 		text-decoration: none;
-		font-size: 0.82rem;
+		font-size: 0.9rem;
 		font-weight: 600;
 		color: #fff;
-		padding: 0.42rem 1rem;
-		border-radius: 6px;
-		border: 1px solid rgba(255, 255, 255, 0.3);
-		background: rgba(255, 255, 255, 0.1);
+		padding: 0.5rem 1.2rem;
+		border-radius: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(255, 255, 255, 0.06);
 		cursor: pointer;
+		transition: background 0.15s, border-color 0.15s;
+		font-family: 'Rajdhani', sans-serif;
+	}
+	.btn-login:hover {
+		background: rgba(255, 255, 255, 0.12);
+		border-color: rgba(59, 130, 246, 0.4);
 	}
 
 	.btn-register {
 		text-decoration: none;
-		font-size: 0.82rem;
+		font-size: 0.9rem;
 		font-weight: 700;
 		color: #fff;
-		background: rgba(0, 0, 0, 0.3);
-		padding: 0.44rem 1.1rem;
-		border-radius: 6px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		padding: 0.5rem 1.3rem;
+		border-radius: 8px;
+		border: none;
 		cursor: pointer;
+		transition: box-shadow 0.2s, transform 0.15s;
+		font-family: 'Rajdhani', sans-serif;
+		box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
+	}
+	.btn-register:hover {
+		box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+		transform: translateY(-1px);
 	}
 
+	/* ── PAGE ── */
 	.page {
-		max-width: 900px;
+		max-width: 1100px;
 		margin: 0 auto;
-		padding: 1.75rem 1.25rem 3rem;
+		padding: 2rem 1.5rem 4rem;
 	}
+
+	/* ── SECTION LABEL ── */
 	.section-label {
-		font-size: 0.72rem;
+		font-size: 0.85rem;
 		font-weight: 700;
 		text-transform: uppercase;
-		letter-spacing: 1px;
-		color: #bbb;
-		margin: 0 0 0.9rem;
+		letter-spacing: 1.5px;
+		color: #3b82f6;
+		margin: 0 0 1.2rem;
 	}
 
+	/* ── GAME GRID ── */
 	.game-grid {
 		display: grid;
 		grid-template-columns: repeat(3, 1fr);
-		gap: 0.75rem;
+		gap: 1rem;
 	}
 	.game-card {
-		background: #fff;
-		border: 1px solid #000000;
-		border-radius: 10px;
+		background: #151515;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 14px;
 		text-decoration: none;
 		color: inherit;
 		overflow: hidden;
@@ -543,11 +536,12 @@
 		font-family: inherit;
 		font-size: inherit;
 		padding: 0;
+		transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
 	}
-
 	.game-card:hover {
-		transform: scale(1.02);
-		transition: transform 0.2s ease;
+		transform: translateY(-6px);
+		box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(59, 130, 246, 0.1);
+		border-color: rgba(59, 130, 246, 0.3);
 	}
 
 	.blackjack-card {
@@ -564,54 +558,56 @@
 		bottom: 0;
 		left: 0;
 		right: 0;
-		background: rgba(255, 255, 255, 0.15);
-		backdrop-filter: blur(10px);
-		border-top: 1px solid rgba(255, 255, 255, 0.2);
+		background: linear-gradient(to top, rgba(0,0,0,0.85), transparent);
+		border-top: 1px solid rgba(59, 130, 246, 0.15);
+		padding: 1.2rem 1rem 0.8rem;
 	}
 
 	.card-meta {
-		padding: 0.65rem 0.8rem;
+		padding: 0.8rem 1rem;
 		display: flex;
 		align-items: center;
 		justify-content: space-between;
-		border-top: 1px solid #e5e5e5;
 	}
 	.card-name {
-		font-size: 0.85rem;
-		font-weight: 600;
-		color: #ffffff;
+		font-size: 1rem;
+		font-weight: 700;
+		color: #fff;
 	}
 	.card-type {
-		font-size: 0.65rem;
+		font-size: 0.72rem;
 		font-weight: 600;
 		text-transform: uppercase;
 		letter-spacing: 0.5px;
-		color: #bbb;
+		color: #3b82f6;
 	}
 
+	/* ── AUTH MODAL ── */
 	.auth-backdrop {
 		position: fixed;
 		inset: 0;
-		background: rgba(0, 0, 0, 0.62);
+		background: rgba(0, 0, 0, 0.75);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		z-index: 1200;
-		padding: 1rem;
+		padding: 1.5rem;
 	}
 
 	.auth-modal {
-		width: min(900px, 100%);
-		min-height: 520px;
+		width: min(960px, 100%);
+		min-height: 600px;
 		display: grid;
 		grid-template-columns: 1.05fr 1fr;
-		background: #fff;
-		border-radius: 14px;
+		background: #111;
+		border-radius: 16px;
 		overflow: hidden;
+		box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(255, 255, 255, 0.06);
 	}
 
 	.auth-visual {
-		padding: 2rem;
+		padding: 2.5rem;
 		color: #fff;
 		display: flex;
 		flex-direction: column;
@@ -619,113 +615,163 @@
 		background-size: cover;
 		background-position: center;
 		background-repeat: no-repeat;
+		position: relative;
 	}
-
+	.auth-visual::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: linear-gradient(to top, rgba(0,0,0,0.6), transparent 60%);
+		pointer-events: none;
+	}
 	.auth-visual.login {
 		background-image: url('/images/loginside.png');
 	}
-
 	.auth-visual.register {
 		background-image: url('/images/registerside.png');
 	}
-
 	.auth-visual h2 {
 		margin: 0;
-		font-size: 2rem;
+		font-size: 2.5rem;
+		position: relative;
+		z-index: 1;
+		font-family: 'Casino', cursive;
+		color: #fff;
+		text-shadow: 0 0 30px rgba(59, 130, 246, 0.3);
 	}
 
 	.auth-content {
 		position: relative;
-		padding: 1.35rem 1.6rem 1.6rem;
-		color: #333;
-		background: #fff;
+		padding: 1.8rem 2rem 2rem;
+		color: #e0e0e0;
+		background: #111;
 	}
 
 	.close-btn {
 		position: absolute;
-		top: 0.85rem;
-		right: 0.9rem;
-		width: 2rem;
-		height: 2rem;
+		top: 1rem;
+		right: 1rem;
+		width: 2.2rem;
+		height: 2.2rem;
 		border-radius: 999px;
-		border: 1px solid #ddd;
-		background: transparent;
-		color: #333;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: rgba(255, 255, 255, 0.05);
+		color: #aaa;
 		cursor: pointer;
-		font-size: 1.2rem;
+		font-size: 1.3rem;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		transition: background 0.15s, color 0.15s;
+	}
+	.close-btn:hover {
+		background: rgba(255, 255, 255, 0.1);
+		color: #fff;
 	}
 
 	.auth-tabs {
 		display: flex;
-		gap: 0.4rem;
-		margin-bottom: 1.25rem;
+		gap: 0.5rem;
+		margin-bottom: 1.5rem;
+		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 	}
-
 	.auth-tabs button {
-		padding: 0.5rem 0.95rem;
+		padding: 0.6rem 1rem;
 		border: none;
 		border-bottom: 2px solid transparent;
 		background: transparent;
 		color: #666;
 		font-weight: 700;
+		font-size: 0.95rem;
 		cursor: pointer;
+		transition: color 0.15s, border-color 0.15s;
+		font-family: 'Rajdhani', sans-serif;
+		margin-bottom: -1px;
 	}
-
 	.auth-tabs button.active {
-		color: #000;
-		border-bottom-color: #000;
+		color: #3b82f6;
+		border-bottom-color: #3b82f6;
 	}
 
 	.auth-content h3 {
-		font-size: 1.8rem;
+		font-size: 2rem;
 		line-height: 1.15;
-		margin: 0 0 1.2rem;
+		margin: 0 0 1.5rem;
+		color: #fff;
 	}
 
 	.auth-form {
 		display: grid;
-		gap: 0.8rem;
+		gap: 1rem;
 	}
 
 	.auth-form label {
 		display: grid;
-		gap: 0.45rem;
-		font-size: 0.95rem;
-		color: #333;
+		gap: 0.4rem;
+		font-size: 0.9rem;
+		color: #aaa;
 		font-weight: 600;
 	}
 
 	.auth-form input {
-		height: 44px;
-		border-radius: 8px;
-		border: 1px solid #ddd;
-		background: #f9f9f9;
-		padding: 0 0.75rem;
-		color: #333;
-		font-size: 0.95rem;
+		height: 52px;
+		border-radius: 10px;
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		background: rgba(255, 255, 255, 0.04);
+		padding: 0 1rem;
+		color: #fff;
+		font-size: 1rem;
+		font-family: 'Rajdhani', sans-serif;
+		transition: border-color 0.15s, box-shadow 0.15s;
 	}
-
 	.auth-form input:focus {
 		outline: none;
-		border-color: #000;
+		border-color: #3b82f6;
+		box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+	}
+	.auth-form input::placeholder {
+		color: #555;
 	}
 
 	.auth-error {
-		color: #d32f2f;
+		color: #ff4d4d;
 		margin: 0;
-		font-size: 0.88rem;
+		font-size: 0.9rem;
+		background: rgba(255, 77, 77, 0.08);
+		padding: 0.5rem 0.8rem;
+		border-radius: 6px;
+		border: 1px solid rgba(255, 77, 77, 0.15);
 	}
 
 	.auth-submit {
-		margin-top: 0.3rem;
-		height: 48px;
+		margin-top: 0.5rem;
+		height: 52px;
 		border: none;
-		border-radius: 8px;
-		background: #000;
+		border-radius: 10px;
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
 		color: #fff;
-		font-size: 1rem;
+		font-size: 1.05rem;
 		font-weight: 700;
 		cursor: pointer;
+		display: inline-flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		font-family: 'Rajdhani', sans-serif;
+		box-shadow: 0 2px 16px rgba(59, 130, 246, 0.2);
+		transition: box-shadow 0.2s, transform 0.15s;
+	}
+	.auth-submit:hover:not(:disabled) {
+		box-shadow: 0 4px 24px rgba(59, 130, 246, 0.35);
+		transform: translateY(-1px);
+	}
+	.auth-submit:disabled {
+		opacity: 0.6;
+		cursor: not-allowed;
+	}
+
+	.spinner {
+		flex-shrink: 0;
 	}
 
 	@media (max-width: 860px) {
@@ -733,7 +779,6 @@
 			grid-template-columns: 1fr;
 			min-height: auto;
 		}
-
 		.auth-visual {
 			display: none;
 		}
@@ -741,75 +786,28 @@
 
 	/* ── COINS INDICATOR ── */
 	.coins-indicator {
-		font-size: 0.88rem;
+		font-family: inherit;
+		font-size: 1rem;
 		font-weight: 700;
-		color: #c5a059;
-		padding: 0.38rem 0.8rem;
-		display: flex;
-		align-items: center;
-		letter-spacing: 0.03em;
-	}
-
-	/* ── DAILY CLAIM ── */
-	.daily-claim-banner {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-		padding-bottom: 1.25rem;
-		margin-bottom: 1.5rem;
-	}
-
-	.claim-left {
-		display: flex;
-		align-items: baseline;
-		gap: 0.75rem;
-	}
-
-	.claim-eyebrow {
-		font-size: 0.78rem;
-		font-weight: 600;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: #888;
-	}
-
-	.claim-amount {
-		font-size: 1.1rem;
-		font-weight: 700;
-		color: #c5a059;
-	}
-
-	.btn-claim {
-		font-size: 0.82rem;
-		font-weight: 700;
-		color: #fff;
-		background: rgba(197, 160, 89, 0.2);
-		border: 1px solid rgba(197, 160, 89, 0.5);
-		border-radius: 6px;
+		color: #60a5fa;
 		padding: 0.4rem 1rem;
-		cursor: pointer;
-		transition: background 0.15s, border-color 0.15s;
+		display: flex;
+		align-items: center;
 		letter-spacing: 0.03em;
+		background: rgba(59, 130, 246, 0.06);
+		border: 1px solid rgba(59, 130, 246, 0.15);
+		border-radius: 8px;
+		gap: 0.4rem;
 	}
-
-	.btn-claim:hover {
-		background: rgba(197, 160, 89, 0.35);
-		border-color: rgba(197, 160, 89, 0.8);
-	}
-
-	.claim-countdown {
-		font-size: 0.82rem;
-		font-weight: 600;
-		color: #555;
-		letter-spacing: 0.02em;
+	.coins-indicator::before {
+		content: '◆';
+		font-size: 0.75rem;
+		color: #3b82f6;
 	}
 
 	@media (max-width: 600px) {
-		.daily-claim-banner {
-			flex-direction: column;
-			align-items: flex-start;
-			gap: 0.75rem;
+		.game-grid {
+			grid-template-columns: 1fr;
 		}
 	}
 </style>

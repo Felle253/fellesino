@@ -1,6 +1,5 @@
-import { requireAuth } from '$lib/auth';
+import { redirect } from '@sveltejs/kit';
 
-export async function load(event) {
-	const user = await requireAuth(event.cookies);
-	return { user };
+export function load() {
+	throw redirect(303, '/');
 }

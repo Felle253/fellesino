@@ -2,33 +2,34 @@
   import { enhance, deserialize } from '$app/forms';
   import { base } from '$app/paths';
 
-  export let data;
-  export const form = undefined;
+  let { data, form } = $props();
 
-  let userCoins: number = data.user?.coins ?? 0;
-  let currentBet: number = 0;
-  let loading = false;
-  let error: string | null = null;
+  let userCoins = $state<number>(data.user?.coins ?? 0);
+  let currentBet = $state(0);
+  let loading = $state(false);
+  let error = $state<string | null>(null);
 
-  let gameStatus: 'betting' | 'playing' | 'finished' = 'betting';
-  let roundId: string | null = null;
-  let playerCards: string[] = [];
-  let dealerCards: string[] = [];
-  let playerScore: number = 0;
-  let dealerScore: number = 0;
-  let result: string | null = null;
-  let payout: number = 0;
+  let gameStatus = $state<'betting' | 'playing' | 'finished'>('betting');
+  let roundId = $state<string | null>(null);
+  let playerCards = $state<string[]>([]);
+  let dealerCards = $state<string[]>([]);
+  let playerScore = $state(0);
+  let dealerScore = $state(0);
+  let result = $state<string | null>(null);
+  let payout = $state(0);
 
-  $: if (data.activeRound?.blackjackHand) {
-    const hand = data.activeRound.blackjackHand;
-    roundId = data.activeRound.id;
-    playerCards = hand.playerCards.split(',').map((c: string) => c.trim());
-    dealerCards = hand.dealerCards.split(',').map((c: string) => c.trim()).slice(0, 1);
-    playerScore = hand.playerScore;
-    dealerScore = 0;
-    gameStatus = 'playing';
-    currentBet = data.activeRound.betAmount;
-  }
+  $effect(() => {
+    if (data.activeRound?.blackjackHand) {
+      const hand = data.activeRound.blackjackHand;
+      roundId = data.activeRound.id;
+      playerCards = hand.playerCards.split(',').map((c: string) => c.trim());
+      dealerCards = hand.dealerCards.split(',').map((c: string) => c.trim()).slice(0, 1);
+      playerScore = hand.playerScore;
+      dealerScore = 0;
+      gameStatus = 'playing';
+      currentBet = data.activeRound.betAmount;
+    }
+  });
 
   function parseCard(card: string) {
     const suit = card.slice(-1);
@@ -134,6 +135,34 @@
     gameStatus = 'finished';
   }
 
+  let cardDealId = $state(0);
+  let showSurrenderConfirm = $state(false);
+
+  function handleSurrenderClick() {
+    if (gameStatus === 'betting') {
+      window.location.href = base + '/';
+    } else if (gameStatus === 'playing') {
+      showSurrenderConfirm = true;
+    }
+  }
+
+  function cancelSurrender() {
+    showSurrenderConfirm = false;
+  }
+
+  async function confirmSurrender() {
+    showSurrenderConfirm = false;
+    const d = await post('surrender', { roundId: roundId! });
+    if (!d) return;
+    if (d.error) { error = d.error; return; }
+    dealerCards = d.dealerCards.split(',').map((c: string) => c.trim());
+    dealerScore = d.dealerScore;
+    result = 'LOST';
+    payout = d.payout;
+    userCoins += payout - currentBet;
+    gameStatus = 'finished';
+  }
+
   function handleNewGame() {
     currentBet = 0;
     playerCards = [];
@@ -145,6 +174,7 @@
     roundId = null;
     error = null;
     gameStatus = 'betting';
+    cardDealId++;
   }
 </script>
 
@@ -154,7 +184,9 @@
 	<div class="top-left">
 		<a class="close-btn close-btn-link" aria-label="Back" href="{base}/">✕</a>
 		<div class="arrow-and-label">
-			<div class="rotated-label">Surrender</div>
+			<button class="rotated-label" onclick={handleSurrenderClick}>
+				{gameStatus === 'betting' ? 'Leave' : 'Surrender'}
+			</button>
 		</div>
 	</div>
 
@@ -196,7 +228,7 @@
 				<button
 					class="btn btn-deal"
 					type="button"
-					on:click={gameStatus === 'finished' ? handleNewGame : handleDeal}
+					onclick={gameStatus === 'finished' ? handleNewGame : handleDeal}
 					disabled={loading || (gameStatus === 'betting' && currentBet === 0) || gameStatus === 'playing'}
 				>
 					<span class="btn-label">{gameStatus === 'finished' ? 'NEW GAME' : 'DEAL'}</span>
@@ -204,16 +236,16 @@
 
 				{#if gameStatus === 'betting'}
 					<div class="chips-row">
-						<button class="chip chip-5" type="button" on:click={() => handleChipClick(5)} disabled={loading || currentBet + 5 > userCoins}>
+						<button class="chip chip-5" type="button" onclick={() => handleChipClick(5)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$5</span>
 						</button>
-						<button class="chip chip-25" type="button" on:click={() => handleChipClick(25)} disabled={loading || currentBet + 5 > userCoins}>
+						<button class="chip chip-25" type="button" onclick={() => handleChipClick(25)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$25</span>
 						</button>
-						<button class="chip chip-100" type="button" on:click={() => handleChipClick(100)} disabled={loading || currentBet + 5 > userCoins}>
+						<button class="chip chip-100" type="button" onclick={() => handleChipClick(100)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$100</span>
 						</button>
-						<button class="chip chip-500" type="button" on:click={() => handleChipClick(500)} disabled={loading || currentBet + 5 > userCoins}>
+						<button class="chip chip-500" type="button" onclick={() => handleChipClick(500)} disabled={loading || currentBet + 5 > userCoins}>
 							<span class="chip-value">$500</span>
 						</button>
 					</div>
@@ -224,16 +256,16 @@
 
 	<div class="card-area dealer-area">
 		<div class="cards-row">
-			{#each dealerCards as card, i (i)}
+			{#each dealerCards as card, i (card)}
 				{@const { rank, suit } = parseCard(card)}
-				<div class="card" class:red={isRedCard(card)}>
+				<div class="card" class:red={isRedCard(card)} style="--i: {i}; --total: {dealerCards.length}">
 					<span class="card-corner tl">{rank}<br />{suit}</span>
 					<span class="card-suit-center">{suit}</span>
 					<span class="card-corner br">{rank}<br />{suit}</span>
 				</div>
 			{/each}
 			{#if gameStatus === 'playing' && dealerCards.length === 1}
-				<div class="card card-hidden">
+				<div class="card card-hidden" style="--i: 1; --total: 2">
 					<div class="card-back-inner"></div>
 				</div>
 			{/if}
@@ -252,9 +284,9 @@
 			</div>
 		{/if}
 		<div class="cards-row">
-			{#each playerCards as card, i (i)}
+			{#each playerCards as card, i (card)}
 				{@const { rank, suit } = parseCard(card)}
-				<div class="card" class:red={isRedCard(card)}>
+				<div class="card" class:red={isRedCard(card)} style="--i: {i}; --total: {playerCards.length}">
 					<span class="card-corner tl">{rank}<br />{suit}</span>
 					<span class="card-suit-center">{suit}</span>
 					<span class="card-corner br">{rank}<br />{suit}</span>
@@ -269,7 +301,7 @@
 			<button
 				class="btn btn-circle"
 				type="button"
-				on:click={handleHit}
+				onclick={handleHit}
 				disabled={loading}
 			>
 				<span class="btn-label">HIT</span>
@@ -277,7 +309,7 @@
 			<button
 				class="btn btn-circle"
 				type="button"
-				on:click={handleDouble}
+				onclick={handleDouble}
 				disabled={loading || playerCards.length !== 2}
 			>
 				<span class="btn-label">DOUBLE</span>
@@ -285,7 +317,7 @@
 			<button
 				class="btn btn-rect"
 				type="button"
-				on:click={handleStand}
+				onclick={handleStand}
 				disabled={loading}
 			>
 				<span class="btn-label">STAND</span>
@@ -302,8 +334,28 @@
 	</div>
 </div>
 
+{#if showSurrenderConfirm}
+	<div
+		class="confirm-backdrop"
+		onclick={cancelSurrender}
+		onkeydown={(e) => e.key === 'Escape' && cancelSurrender()}
+		role="button"
+		tabindex="0"
+	>
+		<div class="confirm-modal" role="dialog" aria-modal="true" tabindex="-1" onkeydown={(e) => e.key === 'Escape' && cancelSurrender()} onclick={(e) => e.stopPropagation()}>
+			<h3>Surrender?</h3>
+			<p>Forfeit this hand? You'll get 50% of your bet back.</p>
+			<div class="confirm-actions">
+				<button class="confirm-cancel" onclick={cancelSurrender}>Cancel</button>
+				<button class="confirm-yes" onclick={confirmSurrender} disabled={loading}>
+					{loading ? 'Sending...' : 'Yes, surrender'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
 <style>
-	@import url('https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700&family=Rajdhani:wght@500;700&display=swap');
 
 	:global(body) {
 		margin: 0;
@@ -328,97 +380,88 @@
 		background-position: center;
 		background-repeat: no-repeat;
 		background-attachment: fixed;
-		background-color: #1a4d2e;
+		background-color: #0d2818;
 		z-index: 0;
+	}
+	.bg-image::after {
+		content: '';
+		position: absolute;
+		inset: 0;
+		background: radial-gradient(ellipse at center, transparent 40%, rgba(0,0,0,0.4) 100%);
+		pointer-events: none;
 	}
 
 	/* ── TOP LEFT ── */
 	.top-left {
 		position: absolute;
-		top: 22px;
-		left: 22px;
+		top: 1.8rem;
+		left: 1.8rem;
 		z-index: 10;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 6px;
+		gap: 8px;
 	}
 
 	.close-btn {
-		width: 46px;
-		height: 46px;
+		width: 56px;
+		height: 56px;
 		border-radius: 50%;
-		background: #ff4d4d;
-		border: 3px solid #4e2c1c;
+		background: rgba(255, 77, 77, 0.85);
+		border: 2px solid rgba(255, 255, 255, 0.1);
 		color: #ffffff;
-		font-size: 1.3rem;
+		font-size: 1.5rem;
 		font-weight: 900;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition:
-			transform 0.1s,
-			box-shadow 0.1s,
-			margin-top 0.1s;
-	}
-
-	.close-btn-link {
+		transition: transform 0.15s, box-shadow 0.15s;
 		text-decoration: none;
+		box-shadow: 0 2px 12px rgba(255, 77, 77, 0.2);
 	}
-
 	.close-btn:hover {
-		transform: translateY(2px);
-		margin-top: 2px;
-	}
-
-	.rotated-label {
-		writing-mode: vertical-rl;
-		text-orientation: mixed;
-		transform: rotate(225deg) translate(10px, 60px);
-		color: #ffffff;
-		-webkit-text-stroke: 1px #4e2c1c;
-		font-size: 1.5rem;
-		font-weight: 900;
-		margin-bottom: 2px;
+		transform: scale(1.08);
+		box-shadow: 0 4px 20px rgba(255, 77, 77, 0.35);
 	}
 
 	/* ── TOP RIGHT ── */
 	.top-right {
 		position: absolute;
-		top: 22px;
-		right: 24px;
+		top: 1.8rem;
+		right: 1.8rem;
 		z-index: 10;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		gap: 10px;
+		gap: 12px;
 	}
 
 	.money-display {
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		background: #0b1a12;
-		border: 3px solid #4e2c1c;
+		background: rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(59, 130, 246, 0.15);
 		border-radius: 12px;
-		padding: 6px 14px 6px 20px;
+		padding: 0.5rem 1.2rem 0.5rem 1.8rem;
+		backdrop-filter: blur(8px);
 	}
 
 	.money-label {
-		font-size: 0.75rem;
+		font-size: 0.72rem;
 		font-weight: 800;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
-		color: #c5a059;
+		color: #60a5fa;
 	}
 
 	.money-value {
 		font-family: 'Rajdhani', sans-serif;
-		font-size: 1.3rem;
+		font-size: 1.6rem;
 		font-weight: 900;
 		color: #ffffff;
-		-webkit-text-stroke: 1px #4e2c1c;
+		line-height: 1.1;
 	}
 
 	.money-value.bet {
@@ -428,21 +471,17 @@
 	/* ── BOTTOM RIGHT ── */
 	.bottom-right {
 		position: absolute;
-		bottom: 24px;
-		right: 24px;
+		bottom: 2rem;
+		right: 2rem;
 		z-index: 10;
 		display: flex;
 		flex-direction: column;
 		align-items: flex-end;
-		gap: 10px;
+		gap: 12px;
 	}
 
 	.round-status {
 		position: relative;
-		top: auto;
-		left: auto;
-		transform: none;
-		z-index: auto;
 		display: flex;
 		flex-direction: column;
 		align-items: center;
@@ -458,29 +497,26 @@
 
 	.chips-row {
 		display: flex;
-		gap: 6px;
+		gap: 10px;
 		flex-wrap: wrap;
 		justify-content: center;
 	}
 
 	.chip {
 		position: relative;
-		width: 55px;
-		height: 55px;
+		width: 80px;
+		height: 80px;
 		border-radius: 50%;
 		cursor: pointer;
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		padding: 0;
-		transition:
-			transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
-			filter 0.1s;
+		transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.1s;
 		font-family: 'Rajdhani', sans-serif;
 		font-weight: 900;
 		border: none;
 	}
-
 	.chip::before {
 		content: '';
 		position: absolute;
@@ -489,96 +525,79 @@
 		background: radial-gradient(circle at 35% 35%, rgba(255, 255, 255, 0.4), transparent 50%);
 		pointer-events: none;
 	}
-
 	.chip::after {
 		content: '';
 		position: absolute;
-		inset: 3px;
+		inset: 4px;
 		border-radius: 50%;
-		border: 2px solid rgba(78, 44, 28, 0.3);
+		border: 2px solid rgba(0, 0, 0, 0.15);
 		pointer-events: none;
-		background: repeating-conic-gradient(
-			from 0deg,
-			transparent 0deg 6deg,
-			rgba(78, 44, 28, 0.1) 6deg 12deg
-		);
+		background: repeating-conic-gradient(from 0deg, transparent 0deg 6deg, rgba(0,0,0,0.08) 6deg 12deg);
 	}
 
-	.chip-5 {
-		background: linear-gradient(135deg, #ff6b6b 0%, #ff5252 50%, #ff6b6b 100%);
-	}
+	.chip-5 { background: linear-gradient(135deg, #ff6b6b 0%, #e53935 100%); }
+	.chip-25 { background: linear-gradient(135deg, #4dabf7 0%, #1976d2 100%); }
+	.chip-100 { background: linear-gradient(135deg, #00e5ff 0%, #0097a7 100%); }
+	.chip-500 { background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%); }
 
-	.chip-25 {
-		background: linear-gradient(135deg, #4dabf7 0%, #1c7ed6 50%, #4dabf7 100%);
-	}
-
-	.chip-100 {
-		background: linear-gradient(135deg, #00e5ff 0%, #00bcd4 50%, #00e5ff 100%);
-	}
-
-	.chip-500 {
-		background: linear-gradient(135deg, #c5a059 0%, #9d7c3e 50%, #c5a059 100%);
-	}
-
-	.chip:hover {
-		transform: translateY(-6px) scale(1.08);
-		filter: drop-shadow(0 0 8px rgba(0, 0, 0, 0.3));
-	}
-
-	.chip:active:not(:disabled) {
-		transform: translateY(4px) scale(0.98);
+	.chip:hover:not(:disabled) { transform: translateY(-8px) scale(1.1); filter: drop-shadow(0 4px 16px rgba(0,0,0,0.4)); }
+	.chip:active:not(:disabled) { transform: scale(0.92); transition: transform 0.06s; }
+	.chip:disabled {
+		opacity: 0.35;
+		filter: grayscale(0.8);
+		cursor: not-allowed;
+		transform: none !important;
 	}
 
 	.error-message {
-		background: #ff4d4d;
+		background: rgba(255, 77, 77, 0.9);
 		color: #ffffff;
-		padding: 8px 16px;
-		border-radius: 8px;
-		border: 2px solid #4e2c1c;
+		padding: 10px 20px;
+		border-radius: 10px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
 		font-weight: 700;
-		font-size: 0.9rem;
+		font-size: 1rem;
 		text-align: center;
-		max-width: 200px;
+		max-width: 260px;
+		animation: resultPopIn 0.25s ease-out;
 	}
 
 	.result-message {
-		background: #0b1a12;
-		border: 3px solid #4e2c1c;
-		border-radius: 12px;
-		padding: 12px 16px;
+		background: rgba(0, 0, 0, 0.6);
+		border: 1px solid rgba(255, 255, 255, 0.08);
+		border-radius: 14px;
+		padding: 1rem 1.6rem;
 		text-align: center;
-		min-width: 200px;
+		min-width: 240px;
+		backdrop-filter: blur(8px);
+		animation: resultPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
-
 	.result-message.won {
-		background: linear-gradient(135deg, #1ade01 0%, #00a800 100%);
+		border-color: rgba(26, 222, 1, 0.3);
+		box-shadow: 0 0 30px rgba(26, 222, 1, 0.15);
 	}
-
 	.result-message.lost {
-		background: linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%);
-		animation: shake 0.6s ease-in-out, glow-red 1.5s ease-in-out infinite;
+		border-color: rgba(255, 77, 77, 0.3);
+		box-shadow: 0 0 30px rgba(255, 77, 77, 0.15);
 	}
 
 	.result-text {
-		font-size: 1.3rem;
+		font-size: 1.8rem;
 		font-weight: 900;
 		color: #ffffff;
-		-webkit-text-stroke: 1px #4e2c1c;
 		margin-bottom: 4px;
+		line-height: 1.1;
 	}
-
 	.payout-text {
-		font-size: 1.1rem;
+		font-size: 1.3rem;
 		font-weight: 700;
 		color: #00e5ff;
-		-webkit-text-stroke: 1px #4e2c1c;
 	}
 
 	.chip-value {
-		font-size: 0.85rem;
+		font-size: 0.95rem;
 		color: #ffffff;
-		-webkit-text-stroke: 1.5px #4e2c1c;
-		text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+		text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
 		pointer-events: none;
 		position: relative;
 		z-index: 2;
@@ -595,92 +614,64 @@
 		display: flex;
 		flex-direction: column;
 		align-items: center;
-		gap: 6px;
+		gap: 10px;
 	}
-
-	.dealer-area {
-		top: 20%;
-	}
-
-	.player-area {
-		top: 53%;
-	}
+	.dealer-area { top: 18%; }
+	.player-area { top: 52%; }
 
 	.cards-row {
 		display: flex;
-		gap: -4px;
+		gap: -6px;
 		align-items: flex-end;
 	}
 
 	.card {
 		position: relative;
-		width: 70px;
-		height: 98px;
-		border-radius: 9px;
+		width: 110px;
+		height: 154px;
+		border-radius: 12px;
 		background: #ffffff;
-		border: 3px solid #4e2c1c;
+		border: 2px solid rgba(255, 255, 255, 0.15);
 		color: #1c1c1c;
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		margin: 0 -4px; /* slight card overlap */
-		transition:
-			transform 0.1s ease,
-			margin-top 0.1s ease;
+		margin: 0 -6px;
+		transition: transform 0.15s ease;
+		box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 	}
-
 	.card:hover {
-		transform: translate(-5px, -15px) scale(1.05);
+		transform: translate(-8px, -20px) scale(1.06);
 		z-index: 2;
 	}
+	.card.red { color: #e53935; }
 
-	.card.red {
-		color: #e53935;
-	}
-
-	/* Corner pip */
 	.card-corner {
 		position: absolute;
-		font-size: 0.68rem;
+		font-size: 1rem;
 		line-height: 1.15;
 		text-align: center;
 		font-weight: 900;
 		font-family: 'Rajdhani', sans-serif;
 	}
+	.card-corner.tl { top: 8px; left: 8px; }
+	.card-corner.br { bottom: 8px; right: 8px; transform: rotate(180deg); }
 
-	.card-corner.tl {
-		top: 5px;
-		left: 6px;
-	}
-
-	.card-corner.br {
-		bottom: 5px;
-		right: 6px;
-		transform: rotate(180deg);
-	}
-
-	.card-suit-center {
-		font-size: 2rem;
-		line-height: 1;
-	}
+	.card-suit-center { font-size: 3rem; line-height: 1; }
 
 	/* Face-down card */
 	.card-hidden {
-		background: #00e5ff;
+		background: linear-gradient(135deg, #1a2744 0%, #2a3f6e 100%);
+		border-color: rgba(59, 130, 246, 0.2);
 	}
-
 	.card-back-inner {
 		width: 100%;
 		height: 100%;
-		border-radius: 5px;
-		border: 2px solid rgba(11, 26, 18, 0.4);
-		background-image: repeating-linear-gradient(
-			45deg,
-			rgba(11, 26, 18, 0.2) 0px,
-			rgba(11, 26, 18, 0.2) 4px,
-			transparent 4px,
-			transparent 12px
-		);
+		border-radius: 8px;
+		border: 2px solid rgba(59, 130, 246, 0.12);
+		background-image:
+			repeating-linear-gradient(45deg, rgba(59,130,246,0.06) 0px, rgba(59,130,246,0.06) 4px, transparent 4px, transparent 12px),
+			radial-gradient(circle at 50% 50%, rgba(59,130,246,0.08) 0%, transparent 60%);
 	}
 
 	/* ── SCORE BADGE ── */
@@ -688,55 +679,47 @@
 		display: flex;
 		align-items: center;
 		gap: 8px;
-		border-radius: 12px;
-		padding: 5px 16px 5px 12px;
-		background: #0b1a12;
-		border: 3px solid #4e2c1c;
-	}
-
-	.dealer-badge {
-		transform: none;
-	}
-
-	.player-badge {
-		transform: none;
+		border-radius: 14px;
+		padding: 8px 20px 8px 16px;
+		background: rgba(0, 0, 0, 0.5);
+		border: 1px solid rgba(59, 130, 246, 0.15);
+		backdrop-filter: blur(8px);
+		animation: badgePop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 	}
 
 	.score-value {
 		font-family: 'Rajdhani', sans-serif;
-		font-size: 1.3rem;
+		font-size: 1.6rem;
 		font-weight: 900;
 		color: #ffffff;
-		-webkit-text-stroke: 1px #4e2c1c;
-		min-width: 26px;
+		min-width: 30px;
 		text-align: center;
-	}
-
-	.score-value.player-val {
-		color: #ffffff;
+		line-height: 1;
 	}
 
 	@keyframes popIn {
-		0% {
-			transform: scale(0.5);
-			opacity: 0;
-		}
-		100% {
-			transform: scale(1);
-			opacity: 1;
-		}
+		from { transform: scale(0.5); opacity: 0; }
+		to { transform: scale(1); opacity: 1; }
+	}
+	@keyframes resultPopIn {
+		from { transform: scale(0.5); opacity: 0; }
+		to { transform: scale(1); opacity: 1; }
+	}
+	@keyframes badgePop {
+		from { transform: scale(0.6); opacity: 0; }
+		to { transform: scale(1); opacity: 1; }
 	}
 
 	/* ── BOTTOM BUTTONS ── */
 	.action-buttons {
 		position: absolute;
-		bottom: 5%;
+		bottom: 6%;
 		left: 45%;
 		transform: translateX(-50%);
 		z-index: 10;
 		display: flex;
 		align-items: center;
-		gap: 28px;
+		gap: 32px;
 	}
 
 	.btn {
@@ -747,124 +730,252 @@
 		padding: 0;
 		outline: none;
 	}
-
 	.btn:disabled {
-		opacity: 0.6;
-		filter: grayscale(0.6);
+		opacity: 0.4;
+		filter: grayscale(0.7);
 		cursor: not-allowed;
 		transform: none !important;
-		box-shadow: 0 0 0 #4e2c1c !important;
-		margin-top: 6px;
+		box-shadow: none !important;
 	}
 
-	.btn-circle,
-	.btn-rect,
-	.btn-deal {
-		border: 4px solid #4e2c1c;
-		background: #00e5ff;
+	.btn-circle, .btn-rect, .btn-deal {
+		border: 2px solid rgba(255, 255, 255, 0.08);
 		display: flex;
 		align-items: center;
 		justify-content: center;
-		transition:
-			transform 0.1s,
-			box-shadow 0.1s,
-			margin-top 0.1s;
+		transition: transform 0.12s, box-shadow 0.12s;
 	}
 
 	.btn-circle:active:not(:disabled),
-	.btn-rect:active:not(:disabled),
-	.btn-deal:active:not(:disabled) {
-		transform: translateY(6px);
-		box-shadow: 0 0 0 #4e2c1c;
-		margin-top: 6px;
+	.btn-rect:active:not(:disabled) {
+		transform: translateY(4px) scale(0.96);
 	}
 
 	.btn-circle {
-		width: 110px;
-		height: 85px;
+		width: 140px;
+		height: 110px;
 		border-radius: 50%;
-		transform: rotate(-4deg);
+	}
+	.btn-circle:first-child {
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25);
+	}
+	.btn-circle:first-child:hover:not(:disabled) {
+		box-shadow: 0 6px 30px rgba(59, 130, 246, 0.4);
+		transform: translateY(-2px) scale(1.04);
+	}
+	.btn-circle:nth-child(2) {
+		background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+		box-shadow: 0 4px 20px rgba(96, 165, 250, 0.2);
+	}
+	.btn-circle:nth-child(2):hover:not(:disabled) {
+		box-shadow: 0 6px 30px rgba(96, 165, 250, 0.35);
+		transform: translateY(-2px) scale(1.04);
+	}
+	.btn-rect {
+		width: 200px;
+		height: 100px;
+		border-radius: 24px;
+		background: linear-gradient(135deg, #1d4ed8 0%, #1e40af 100%);
+		box-shadow: 0 4px 20px rgba(29, 78, 216, 0.2);
+	}
+	.btn-rect:hover:not(:disabled) {
+		box-shadow: 0 6px 30px rgba(29, 78, 216, 0.35);
+		transform: translateY(-2px) scale(1.04);
+	}
+	.btn-circle:first-child:hover:not(:disabled) {
+		box-shadow: 0 6px 30px rgba(26, 222, 1, 0.4);
+		transform: translateY(-2px) scale(1.04);
+	}
+	.btn-circle:nth-child(2) {
+		background: linear-gradient(135deg, #00e5ff 0%, #0097a7 100%);
+		box-shadow: 0 4px 20px rgba(0, 229, 255, 0.2);
+	}
+	.btn-circle:nth-child(2):hover:not(:disabled) {
+		box-shadow: 0 6px 30px rgba(0, 229, 255, 0.35);
+		transform: translateY(-2px) scale(1.04);
 	}
 
 	.btn-rect {
-		width: 160px;
-		height: 80px;
-		border-radius: 20px;
-		background: #c5a059;
-		transform: rotate(2deg);
+		width: 200px;
+		height: 100px;
+		border-radius: 24px;
+		background: linear-gradient(135deg, #ff4d4d 0%, #cc0000 100%);
+		box-shadow: 0 4px 20px rgba(255, 77, 77, 0.2);
+	}
+	.btn-rect:hover:not(:disabled) {
+		box-shadow: 0 6px 30px rgba(255, 77, 77, 0.35);
+		transform: translateY(-2px) scale(1.04);
 	}
 
 	.btn-deal {
-		width: 150px;
-		height: 60px;
-		border-radius: 20px;
-		background: linear-gradient(135deg, #00e5ff 0%, #00bcd4 100%);
-		box-shadow: 0 4px 12px rgba(0, 229, 255, 0.4);
-		transition: transform 0.1s, box-shadow 0.1s, margin-top 0.1s;
+		width: 200px;
+		height: 70px;
+		border-radius: 24px;
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		box-shadow: 0 4px 20px rgba(59, 130, 246, 0.25);
+		transition: transform 0.12s, box-shadow 0.12s;
 	}
-
 	.btn-deal:hover:not(:disabled) {
-		transform: translateY(-4px) scale(1.08);
-		box-shadow: 0 8px 20px rgba(0, 229, 255, 0.6);
+		transform: translateY(-3px) scale(1.04);
+		box-shadow: 0 6px 30px rgba(59, 130, 246, 0.4);
+	}
+	.btn-deal:active:not(:disabled) {
+		transform: translateY(4px) scale(0.96);
 	}
 
 	.btn-label {
 		font-family: 'Rajdhani', sans-serif;
-		font-size: 1.5rem;
+		font-size: 1.6rem;
 		font-weight: 900;
-		letter-spacing: 0.1em;
+		letter-spacing: 0.12em;
 		color: #ffffff;
-		-webkit-text-stroke: 1.5px #4e2c1c;
-		text-shadow: 2px 2px 0 #4e2c1c;
+		text-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
 		pointer-events: none;
 	}
 
 	/* ── CARD PILE ── */
 	.card-pile {
 		position: absolute;
-		left: 63%;
+		left: 65%;
 		top: 45%;
 		transform: translateY(-50%);
 		z-index: 10;
-		width: 130px;
-		height: 150px;
+		width: 180px;
+		height: 200px;
 	}
 
 	.pile-card {
 		position: absolute;
-		width: 70px;
-		height: 98px;
-		border-radius: 9px;
-		background: #00e5ff;
-		border: 3px solid #4e2c1c;
+		width: 110px;
+		height: 154px;
+		border-radius: 12px;
+		background: linear-gradient(135deg, #1a2744 0%, #2a3f6e 100%);
+		border: 2px solid rgba(59, 130, 246, 0.12);
 		display: flex;
 		align-items: center;
 		justify-content: center;
 	}
+	.pile-card-1 { left: 0; top: 0; z-index: 1; }
+	.pile-card-2 { left: 8px; top: 6px; z-index: 2; }
+	.pile-card-3 { left: 16px; top: 12px; z-index: 3; }
+	.pile-card-4 { left: 24px; top: 18px; z-index: 4; }
+	.pile-card-5 { left: 32px; top: 24px; z-index: 5; }
 
-	.pile-card-1 {
-		left: 0;
-		top: 0;
-		z-index: 1;
+	/* ── CARD DEAL ANIMATION ── */
+	@keyframes dealCard {
+		from {
+			transform: translate(100px, -60px) scale(0.5) rotate(-12deg);
+			opacity: 0;
+		}
+		to {
+			transform: translate(0, 0) scale(1) rotate(0deg);
+			opacity: 1;
+		}
 	}
-	.pile-card-2 {
-		left: 5px;
-		top: 4px;
-		z-index: 2;
+	.card-area .card {
+		animation: dealCard 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+		animation-delay: calc(var(--i) * 80ms + 40ms);
 	}
-	.pile-card-3 {
-		left: 10px;
-		top: 8px;
-		z-index: 3;
+	.card-hidden { animation: none; }
+
+	/* ── REVEAL FLIP ── */
+	@keyframes flipReveal {
+		from { transform: rotateY(90deg) scale(0.8); opacity: 0; }
+		to { transform: rotateY(0deg) scale(1); opacity: 1; }
 	}
-	.pile-card-4 {
-		left: 15px;
-		top: 12px;
-		z-index: 4;
+	.game-container:has(.result-message) .dealer-area .card:nth-child(2) {
+		animation: flipReveal 0.45s ease-out both;
+		animation-delay: 0.1s;
 	}
-	.pile-card-5 {
-		left: 20px;
-		top: 16px;
-		z-index: 5;
+
+	/* ── SURRENDER / LEAVE BUTTON ── */
+	.rotated-label {
+		writing-mode: vertical-rl;
+		text-orientation: mixed;
+		transform: rotate(225deg) translate(10px, 80px);
+		color: #60a5fa;
+		font-size: 1.4rem;
+		font-weight: 900;
+		margin-bottom: 2px;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 0;
+		font-family: 'Rajdhani', sans-serif;
+		line-height: 1;
+		transition: color 0.15s, text-shadow 0.15s;
+		letter-spacing: 0.05em;
 	}
+	.rotated-label:hover {
+		color: #fff;
+		text-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+	}
+
+	/* ── CONFIRMATION MODAL ── */
+	.confirm-backdrop {
+		position: fixed;
+		inset: 0;
+		background: rgba(0, 0, 0, 0.75);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		z-index: 1200;
+		animation: fadeIn 0.15s ease-out;
+	}
+	@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+	.confirm-modal {
+		background: #151515;
+		border: 1px solid rgba(59, 130, 246, 0.15);
+		border-radius: 16px;
+		padding: 2rem 2.2rem;
+		max-width: 400px;
+		width: 90%;
+		text-align: center;
+		animation: resultPopIn 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+	}
+	.confirm-modal h3 {
+		margin: 0 0 0.6rem;
+		font-size: 1.8rem;
+		color: #60a5fa;
+		font-weight: 900;
+	}
+	.confirm-modal p {
+		margin: 0 0 1.5rem;
+		font-size: 1rem;
+		color: rgba(255, 255, 255, 0.5);
+		line-height: 1.4;
+	}
+
+	.confirm-actions { display: flex; gap: 0.8rem; justify-content: center; }
+	.confirm-cancel {
+		padding: 0.7rem 1.6rem;
+		border-radius: 10px;
+		border: 1px solid rgba(255, 255, 255, 0.1);
+		background: transparent;
+		color: rgba(255, 255, 255, 0.5);
+		font-weight: 700;
+		font-size: 1rem;
+		cursor: pointer;
+		font-family: 'Rajdhani', sans-serif;
+		transition: background 0.15s, color 0.15s;
+	}
+	.confirm-cancel:hover { background: rgba(255, 255, 255, 0.05); color: #fff; }
+
+	.confirm-yes {
+		padding: 0.7rem 1.6rem;
+		border-radius: 10px;
+		border: none;
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		color: #fff;
+		font-weight: 700;
+		font-size: 1rem;
+		cursor: pointer;
+		font-family: 'Rajdhani', sans-serif;
+		box-shadow: 0 2px 12px rgba(59, 130, 246, 0.2);
+		transition: box-shadow 0.15s;
+	}
+	.confirm-yes:hover:not(:disabled) { box-shadow: 0 4px 20px rgba(59, 130, 246, 0.35); }
+	.confirm-yes:disabled { opacity: 0.5; cursor: not-allowed; }
 </style>

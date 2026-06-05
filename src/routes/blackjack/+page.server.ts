@@ -177,6 +177,45 @@ export const actions = {
 		return { result, dealerCards: finalCards, dealerScore: finalScore, payout };
 	},
 
+	surrender: async ({ request, cookies }) => {
+		const formData = await request.formData();
+		const roundId = formData.get('roundId') as string;
+		const user = await requireAuth(cookies);
+
+		const round = await prisma.gameRound.findUnique({
+			where: { id: roundId },
+			include: { blackjackHand: true }
+		});
+		if (!round) throw redirect(303, '/blackjack');
+
+		const hand = round.blackjackHand;
+		if (!hand) throw redirect(303, '/blackjack');
+
+		const refund = Math.floor(round.betAmount / 2);
+
+		await prisma.gameRound.update({
+			where: { id: roundId },
+			data: { status: 'LOST', payout: refund }
+		});
+
+		if (refund > 0) {
+			await prisma.user.update({
+				where: { id: user.id },
+				data: { coins: { increment: refund } }
+			});
+		}
+
+		const deck = hand.deck.split(',').filter(c => c.trim());
+		const { finalCards, finalScore } = dealerPlay(hand.dealerCards, deck);
+
+		return {
+			result: 'LOST',
+			dealerCards: finalCards,
+			dealerScore: finalScore,
+			payout: refund
+		};
+	},
+
 	double: async ({ request, cookies }) => {
 		const formData = await request.formData();
 		const roundId = formData.get('roundId') as string;

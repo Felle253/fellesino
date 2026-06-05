@@ -79,110 +79,134 @@
 		background-size: cover;
 		background-position: center;
 		background-repeat: no-repeat;
-		background-color: #1a1a1a;
+		background-color: #0a0a0a;
 	}
 
 	.topbar {
 		display: flex;
 		align-items: center;
-		height: 60px;
-		padding: 0 1.5rem;
-		background: rgba(0, 0, 0, 0.15);
-		backdrop-filter: blur(10px);
-		border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+		height: 4rem;
+		padding: 0 2rem;
+		background: rgba(0, 0, 0, 0.4);
+		backdrop-filter: blur(14px);
+		border-bottom: 1px solid rgba(59, 130, 246, 0.2);
 		gap: 2rem;
 		position: sticky;
 		top: 0;
 		z-index: 100;
 	}
+	.logo {
+		font-family: 'Casino', cursive;
+		font-size: 1.6rem;
+		color: #fff;
+		text-decoration: none;
+		letter-spacing: 1px;
+		flex-shrink: 0;
+		text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+		transition: text-shadow 0.2s;
+	}
+	.logo:hover {
+		text-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
+	}
 
 	.logo {
 		font-family: 'Casino', cursive;
-		font-size: 1.35rem;
+		font-size: 1.6rem;
 		color: #fff;
 		text-decoration: none;
-		letter-spacing: 0.5px;
+		letter-spacing: 1px;
 		flex-shrink: 0;
+		text-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+		transition: text-shadow 0.2s;
+	}
+	.logo:hover {
+		text-shadow: 0 0 30px rgba(59, 130, 246, 0.5);
 	}
 
 	.topbar-right {
 		display: flex;
-		gap: 0.5rem;
+		gap: 0.7rem;
 		margin-left: auto;
+		align-items: center;
 	}
 
 	.btn-login {
 		text-decoration: none;
-		font-size: 0.82rem;
+		font-size: 0.9rem;
 		font-weight: 600;
 		color: #fff;
-		padding: 0.42rem 1rem;
-		border-radius: 6px;
-		border: 1px solid rgba(255, 255, 255, 0.3);
-		background: rgba(255, 255, 255, 0.1);
+		padding: 0.5rem 1.2rem;
+		border-radius: 8px;
+		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: rgba(255, 255, 255, 0.06);
 		cursor: pointer;
-		transition: background 0.15s;
+		transition: background 0.15s, border-color 0.15s;
+		font-family: 'Rajdhani', sans-serif;
 	}
-
 	.btn-login:hover {
-		background: rgba(255, 255, 255, 0.18);
+		background: rgba(255, 255, 255, 0.12);
+		border-color: rgba(59, 130, 246, 0.4);
+		transform: translateY(-1px);
 	}
 
 	.btn-register {
 		text-decoration: none;
-		font-size: 0.82rem;
+		font-size: 0.9rem;
 		font-weight: 700;
 		color: #fff;
-		background: rgba(0, 0, 0, 0.3);
-		padding: 0.44rem 1.1rem;
-		border-radius: 6px;
-		border: 1px solid rgba(255, 255, 255, 0.2);
+		background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+		padding: 0.5rem 1.3rem;
+		border-radius: 8px;
+		border: none;
 		cursor: pointer;
-		transition: background 0.15s;
+		transition: box-shadow 0.2s, transform 0.15s;
+		font-family: 'Rajdhani', sans-serif;
+		box-shadow: 0 2px 12px rgba(59, 130, 246, 0.25);
 	}
-
 	.btn-register:hover {
-		background: rgba(0, 0, 0, 0.5);
+		box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+		transform: translateY(-1px);
 	}
 
 	.profile-container {
-		max-width: 560px;
-		margin: 4rem auto;
+		max-width: 640px;
+		margin: 5rem auto;
 		padding: 0 1.5rem;
 	}
 
 	.profile-card {
-		background: rgba(10, 30, 15, 0.6);
-		backdrop-filter: blur(16px);
-		border: 1px solid rgba(255, 255, 255, 0.1);
-		border-radius: 12px;
+		background: rgba(15, 15, 15, 0.8);
+		backdrop-filter: blur(20px);
+		border: 1px solid rgba(59, 130, 246, 0.1);
+		border-radius: 16px;
 		overflow: hidden;
+		box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
 	}
 
 	.profile-header {
-		padding: 1.75rem 2rem 1.5rem;
-		border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+		padding: 2rem 2.5rem 1.5rem;
+		border-bottom: 1px solid rgba(59, 130, 246, 0.08);
 	}
 
 	.profile-header h1 {
 		margin: 0;
-		font-size: 1.5rem;
+		font-size: 1.8rem;
 		color: #fff;
 		font-weight: 700;
 		letter-spacing: 0.01em;
 	}
 
 	.profile-content {
-		padding: 1.75rem 2rem;
+		padding: 2rem 2.5rem;
 	}
 
 	.profile-info {
 		display: grid;
-		gap: 1.4rem;
+		gap: 1.5rem;
 	}
 
 	.info-group {
-		border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+		border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 		padding-bottom: 1.2rem;
 	}
 
@@ -191,25 +215,15 @@
 		padding-bottom: 0;
 	}
 
-	.info-group label {
-		font-size: 0.72rem;
-		font-weight: 700;
-		text-transform: uppercase;
-		letter-spacing: 0.08em;
-		color: rgba(255, 255, 255, 0.4);
-		display: block;
-		margin-bottom: 0.35rem;
-	}
-
 	.info-group p {
 		margin: 0;
-		font-size: 1rem;
+		font-size: 1.15rem;
 		color: rgba(255, 255, 255, 0.85);
 		font-weight: 500;
 	}
 
 	.coins-value {
-		color: #c5a059 !important;
+		color: #60a5fa !important;
 		font-weight: 700 !important;
 	}
 </style>
