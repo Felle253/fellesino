@@ -1,20 +1,16 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { base } from '$app/paths';
-	import { fade } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 	import { sidebar } from '$lib/stores/sidebar.svelte';
 
-	type AuthFormState = {
-		activeTab?: 'login' | 'register';
-		loginError?: string;
-		registerError?: string;
-	};
-
-	let { form, data }: { form?: AuthFormState; data: any } = $props();
+	let { data }: { data: any } = $props();
 
 	let showAuthModal = $state(false);
 	let activeTab = $state<'login' | 'register'>('login');
 	let isSubmitting = $state(false);
+	let loginErrorText = $state('');
+	let registerErrorText = $state('');
 
 	function openAuthModal(tab: 'login' | 'register') {
 		activeTab = tab;
@@ -23,6 +19,8 @@
 
 	function closeAuthModal() {
 		showAuthModal = false;
+		loginErrorText = '';
+		registerErrorText = '';
 	}
 
 	function handleEscape(event: KeyboardEvent) {
@@ -52,12 +50,43 @@
 		}
 	}
 
-	$effect(() => {
-		if (form?.activeTab === 'login' || form?.activeTab === 'register') {
-			activeTab = form.activeTab;
-			showAuthModal = true;
+	async function handleLogin(e: SubmitEvent) {
+		e.preventDefault();
+		isSubmitting = true;
+		loginErrorText = '';
+		const form = e.target as HTMLFormElement;
+		const res = await fetch('/api/login', { method: 'POST', body: new FormData(form) });
+		const result = await res.json();
+		isSubmitting = false;
+		if (result.success) {
+			await invalidateAll();
+			closeAuthModal();
+		} else {
+			loginErrorText = result.error;
 		}
-	});
+	}
+
+	async function handleRegister(e: SubmitEvent) {
+		e.preventDefault();
+		isSubmitting = true;
+		registerErrorText = '';
+		const form = e.target as HTMLFormElement;
+		const res = await fetch('/api/register', { method: 'POST', body: new FormData(form) });
+		const result = await res.json();
+		isSubmitting = false;
+		if (result.success) {
+			await invalidateAll();
+			closeAuthModal();
+		} else {
+			registerErrorText = result.error;
+		}
+	}
+
+	async function handleLogout(e: Event) {
+		e.preventDefault();
+		await fetch('/api/logout', { method: 'POST' });
+		await invalidateAll();
+	}
 </script>
 
 <svelte:window onkeydown={handleEscape} />
@@ -71,9 +100,6 @@
 		{#if data?.user}
 			<button class="coins-indicator" type="button" onclick={() => sidebar.show()}>${data.user.coins}</button>
 			<button class="btn-login" type="button" onclick={() => sidebar.show()}>Profile</button>
-			<form method="POST" action="?/logout" style="display: contents;">
-				<button type="submit" class="btn-register">Logout</button>
-			</form>
 		{:else}
 			<button class="btn-login" type="button" onclick={() => openAuthModal('login')}>Sign in</button
 			>
@@ -333,18 +359,9 @@
 					<h3>Welcome back</h3>
 				<form
 					method="POST"
-					action="?/login"
+					action="/api/login"
 					class="auth-form"
-					use:enhance={() => {
-						isSubmitting = true;
-						return async ({ result }) => {
-							isSubmitting = false;
-							if (result.type === 'success') {
-								await invalidateAll();
-								closeAuthModal();
-							}
-						};
-					}}
+					onsubmit={handleLogin}
 				>
 					<label>
 						Username or Email
@@ -355,8 +372,8 @@
 						<input type="password" name="password" required disabled={isSubmitting} />
 					</label>
 
-					{#if form?.loginError}
-						<p class="auth-error">{form.loginError}</p>
+					{#if loginErrorText}
+						<p class="auth-error">{loginErrorText}</p>
 					{/if}
 
 					<button type="submit" class="auth-submit" disabled={isSubmitting}>
@@ -372,18 +389,9 @@
 				<h3>Create an account</h3>
 				<form
 					method="POST"
-					action="?/register"
+					action="/api/register"
 					class="auth-form"
-					use:enhance={() => {
-						isSubmitting = true;
-						return async ({ result }) => {
-							isSubmitting = false;
-							if (result.type === 'success') {
-								await invalidateAll();
-								closeAuthModal();
-							}
-						};
-					}}
+					onsubmit={handleRegister}
 				>
 					<label>
 						Username
@@ -398,8 +406,8 @@
 						<input type="password" name="password" required minlength="8" disabled={isSubmitting} />
 					</label>
 
-					{#if form?.registerError}
-						<p class="auth-error">{form.registerError}</p>
+					{#if registerErrorText}
+						<p class="auth-error">{registerErrorText}</p>
 					{/if}
 
 					<button type="submit" class="auth-submit" disabled={isSubmitting}>

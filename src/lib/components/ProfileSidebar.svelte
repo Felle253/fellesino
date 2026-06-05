@@ -1,7 +1,6 @@
 <script lang="ts">
 	import { sidebar } from '$lib/stores/sidebar.svelte';
 	import { page } from '$app/stores';
-	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import { fade } from 'svelte/transition';
 
@@ -51,11 +50,9 @@
 	}
 
 	async function handleLogout() {
-		const form = document.createElement('form');
-		form.method = 'POST';
-		form.action = '/?/logout';
-		document.body.appendChild(form);
-		form.submit();
+		await fetch('/api/logout', { method: 'POST' });
+		await invalidateAll();
+		sidebar.hide();
 	}
 </script>
 
@@ -100,19 +97,18 @@
 							</div>
 							<div class="claim-action">
 								{#if canClaim}
-									<form
-										method="POST"
-										action="/?/claimDaily"
-										use:enhance={() => {
-											return async ({ result }) => {
-												if (result.type === 'success') {
-													await invalidateAll();
-												}
-											};
+									<button
+										type="button"
+										class="btn-claim"
+										onclick={async () => {
+											const res = await fetch('/api/claim-daily', { method: 'POST' });
+											if (res.ok) {
+												await invalidateAll();
+											}
 										}}
 									>
-										<button type="submit" class="btn-claim">Claim</button>
-									</form>
+										Claim
+									</button>
 								{:else}
 									<span class="claim-countdown">{timeRemainingStr}</span>
 								{/if}
