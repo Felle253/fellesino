@@ -26,8 +26,10 @@ export function encryptEmail(email: string): string {
 }
 
 export function decryptEmail(encryptedText: string): string {
+	const parts = encryptedText.split(':');
+	if (parts.length < 3) return encryptedText;
+	const [ivHex, authTagHex, data] = parts;
 	const key = getKey();
-	const [ivHex, authTagHex, data] = encryptedText.split(':');
 	const iv = Buffer.from(ivHex, 'hex');
 	const authTag = Buffer.from(authTagHex, 'hex');
 	const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
