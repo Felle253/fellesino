@@ -9,5 +9,3 @@ services:
         value: 22
       - key: ORIGIN
         value: https://fellesino.onrender.com
-      - key: DATABASE_URL
-        value: ""
