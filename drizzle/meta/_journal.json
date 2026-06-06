@@ -15,6 +15,13 @@
       "when": 1780674846362,
       "tag": "0001_chemical_wild_pack",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780734580365,
+      "tag": "0002_daffy_terror",
+      "breakpoints": true
     }
   ]
 }

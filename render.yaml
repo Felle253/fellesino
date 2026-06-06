@@ -9,3 +9,15 @@ services:
         value: 22
       - key: ORIGIN
         value: https://fellesino.onrender.com
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_BUCKET
+        value: fellesino-avatars
+      - key: R2_PUBLIC_URL
+        sync: false

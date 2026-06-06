@@ -94,12 +94,22 @@
 <div class="page-wrap">
 
 <nav class="topbar">
+	{#if data?.user}
+		<div class="topbar-left" onclick={() => sidebar.show()} onkeydown={(e) => { if (e.key === 'Enter') sidebar.show(); }} role="button" tabindex="0">
+			{#if data.user.avatarUrl}
+				<img src={data.user.avatarUrl} alt="" class="topbar-avatar" />
+			{:else}
+				<div class="topbar-avatar-letter">{data.user.username?.charAt(0).toUpperCase() || '?'}</div>
+			{/if}
+			<span class="topbar-username">{data.user.username}</span>
+		</div>
+	{/if}
+
 	<a href="{base}/" class="logo">Fellesino</a>
 
 	<div class="topbar-right">
 		{#if data?.user}
 			<button class="coins-indicator" type="button" onclick={() => sidebar.show()}>${data.user.coins}</button>
-			<button class="btn-login" type="button" onclick={() => sidebar.show()}>Profile</button>
 		{:else}
 			<button class="btn-login" type="button" onclick={() => openAuthModal('login')}>Sign in</button
 			>
@@ -449,6 +459,47 @@
 		position: sticky;
 		top: 0;
 		z-index: 100;
+	}
+	.topbar-left {
+		display: flex;
+		align-items: center;
+		gap: 0.6rem;
+		cursor: pointer;
+		padding: 0.3rem 0.6rem;
+		border-radius: 8px;
+		transition: background 0.15s;
+	}
+	.topbar-left:hover {
+		background: rgba(255, 255, 255, 0.04);
+	}
+	.topbar-avatar {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		object-fit: cover;
+		box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.2);
+	}
+	.topbar-avatar-letter {
+		width: 32px;
+		height: 32px;
+		border-radius: 50%;
+		background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 0.85rem;
+		font-weight: 800;
+		color: #fff;
+		box-shadow: 0 0 0 1.5px rgba(59, 130, 246, 0.2);
+	}
+	.topbar-username {
+		font-size: 0.9rem;
+		font-weight: 700;
+		color: rgba(255, 255, 255, 0.6);
+		transition: color 0.15s;
+	}
+	.topbar-left:hover .topbar-username {
+		color: rgba(255, 255, 255, 0.9);
 	}
 	.logo {
 		position: absolute;

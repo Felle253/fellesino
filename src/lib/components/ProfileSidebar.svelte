@@ -54,6 +54,24 @@
 		await invalidateAll();
 		sidebar.hide();
 	}
+
+	let uploadingAvatar = $state(false);
+
+	async function handleAvatarChange(e: Event) {
+		const input = e.target as HTMLInputElement;
+		const file = input.files?.[0];
+		if (!file) return;
+
+		uploadingAvatar = true;
+		const fd = new FormData();
+		fd.append('avatar', file);
+		const res = await fetch('/api/avatar/upload', { method: 'POST', body: fd });
+		if (res.ok) {
+			await invalidateAll();
+		}
+		uploadingAvatar = false;
+		input.value = '';
+	}
 </script>
 
 <svelte:window onkeydown={handleEscape} />
@@ -78,8 +96,16 @@
 				{#if user}
 					<div class="sidebar-body">
 						<div class="avatar-section">
-							<div class="avatar">{user.username?.charAt(0).toUpperCase() || '?'}</div>
+							{#if user.avatarUrl}
+								<img src={user.avatarUrl} alt={user.username} class="avatar-img" />
+							{:else}
+								<div class="avatar">{user.username?.charAt(0).toUpperCase() || '?'}</div>
+							{/if}
 							<h3 class="username">{user.username}</h3>
+							<label class="change-photo-btn" class:uploading={uploadingAvatar}>
+								<input type="file" accept="image/*" hidden onchange={handleAvatarChange} />
+								{uploadingAvatar ? 'Uploading...' : 'Change Photo'}
+							</label>
 						</div>
 
 						<div class="claim-card">
@@ -237,11 +263,37 @@
 		color: #fff;
 		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15), 0 4px 20px rgba(59, 130, 246, 0.2);
 	}
+	.avatar-img {
+		width: 72px;
+		height: 72px;
+		border-radius: 50%;
+		object-fit: cover;
+		box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15), 0 4px 20px rgba(59, 130, 246, 0.2);
+	}
 	.username {
 		margin: 0;
 		font-size: 1.3rem;
 		font-weight: 700;
 		color: #fff;
+	}
+	.change-photo-btn {
+		font-family: 'Rajdhani', sans-serif;
+		font-size: 0.8rem;
+		font-weight: 600;
+		color: #60a5fa;
+		cursor: pointer;
+		padding: 0.3rem 0.8rem;
+		border-radius: 6px;
+		border: 1px solid rgba(59, 130, 246, 0.2);
+		background: rgba(59, 130, 246, 0.06);
+		transition: background 0.15s;
+	}
+	.change-photo-btn:hover {
+		background: rgba(59, 130, 246, 0.12);
+	}
+	.change-photo-btn.uploading {
+		opacity: 0.5;
+		pointer-events: none;
 	}
 
 	.claim-card {

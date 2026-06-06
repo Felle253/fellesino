@@ -16,7 +16,8 @@ export const user = pgTable('User', {
 	passwordVersion: integer('passwordVersion').default(1),
 	coins: integer('coins').default(1000).notNull(),
 	lastActive: timestamp('lastActive'),
-	lastClaimed: timestamp('lastClaimed')
+	lastClaimed: timestamp('lastClaimed'),
+	avatarUrl: text('avatarUrl')
 });
 
 export const session = pgTable('Session', {
