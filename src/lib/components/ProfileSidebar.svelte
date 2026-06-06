@@ -63,14 +63,37 @@
 		if (!file) return;
 
 		uploadingAvatar = true;
+		const compressed = await compressImage(file, 256);
 		const fd = new FormData();
-		fd.append('avatar', file);
+		fd.append('avatar', compressed, 'avatar.jpg');
 		const res = await fetch('/api/avatar/upload', { method: 'POST', body: fd });
 		if (res.ok) {
 			await invalidateAll();
 		}
 		uploadingAvatar = false;
 		input.value = '';
+	}
+
+	function compressImage(file: File, maxSize: number): Promise<Blob> {
+		return new Promise((resolve, reject) => {
+			const img = new Image();
+			img.onload = () => {
+				const canvas = document.createElement('canvas');
+				const size = Math.min(img.width, img.height);
+				const sx = (img.width - size) / 2;
+				const sy = (img.height - size) / 2;
+				canvas.width = maxSize;
+				canvas.height = maxSize;
+				const ctx = canvas.getContext('2d')!;
+				ctx.drawImage(img, sx, sy, size, size, 0, 0, maxSize, maxSize);
+				canvas.toBlob((blob) => {
+					if (blob) resolve(blob);
+					else reject(new Error('Compression failed'));
+				}, 'image/jpeg', 0.8);
+			};
+			img.onerror = () => reject(new Error('Failed to load image'));
+			img.src = URL.createObjectURL(file);
+		});
 	}
 </script>
 
